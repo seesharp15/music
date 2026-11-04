@@ -103,6 +103,32 @@ button { font: inherit; color: inherit; }
   background: #fff; border-radius: 2px; pointer-events: none;
   box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
 }
+.trimmer-map {
+  position: relative; height: 10px; margin-top: 14px; border-radius: 999px;
+  background: #1b1e25; touch-action: none; transition: opacity 0.2s;
+}
+.trimmer-map::before { /* larger touch target, stopping short of the sections below */
+  content: ""; position: absolute; inset: -10px 0 -8px;
+}
+.trimmer-map:not(.is-active) { opacity: 0.3; }
+.trimmer-map.is-active { cursor: grab; }
+.trimmer-map.is-active:active { cursor: grabbing; }
+.trimmer-map-loop {
+  position: absolute; top: 0; bottom: 0; border-radius: 999px;
+  background: rgba(255, 204, 0, 0.3); pointer-events: none;
+}
+.trimmer-map-thumb {
+  position: absolute; top: -4px; bottom: -4px; min-width: 14px; transform: translateX(-50%);
+  border: 2px solid var(--accent); border-radius: 6px; background: rgba(255, 204, 0, 0.14);
+  pointer-events: none;
+}
+.trimmer-map-tick {
+  position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255, 255, 255, 0.25); pointer-events: none;
+}
+.trimmer-map-head {
+  position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px;
+  background: #fff; border-radius: 1px; pointer-events: none;
+}
 .trimmer-labels {
   display: flex; justify-content: space-between; gap: 8px; margin-top: 8px;
   font-size: 0.8rem; color: var(--muted);
@@ -120,12 +146,12 @@ button { font: inherit; color: inherit; }
 .control-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .group-label, .speed label { color: var(--muted); font-size: 0.85rem; }
 .play-btn {
-  width: 52px; height: 52px; border-radius: 50%; border: 0; cursor: pointer;
+  width: 65px; height: 65px; border-radius: 50%; border: 0; cursor: pointer;
   background: var(--accent); color: #111; display: grid; place-items: center;
 }
 .play-btn:active { transform: scale(0.96); }
 .icon-btn {
-  width: 40px; height: 40px; border-radius: 50%; cursor: pointer;
+  width: 50px; height: 50px; border-radius: 50%; cursor: pointer;
   background: var(--surface-2); border: 1px solid var(--border); display: grid; place-items: center;
 }
 .chip {
@@ -145,7 +171,32 @@ button { font: inherit; color: inherit; }
 .speed input[type="range"] { width: 160px; accent-color: var(--accent); }
 .speed-value { width: 3.2em; text-align: right; font-size: 0.875rem; }
 
-.sections { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.trimmer-sections { position: relative; height: 24px; margin-top: 12px; margin-bottom: 64px; }
+.trimmer-section {
+  position: absolute; top: 0; bottom: 0; padding: 0; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--muted);
+  font: inherit; cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+/* Angled like chart axis labels: each ends under its block's centre and runs
+   down-left, so even narrow neighbours stack without overlapping. */
+.trimmer-section span {
+  position: absolute; top: calc(100% + 6px); right: 50%;
+  transform: rotate(-40deg); transform-origin: right top;
+  white-space: nowrap; font-size: 0.72rem; line-height: 1;
+}
+.trimmer-section.is-on { background: rgba(255, 204, 0, 0.16); border-color: var(--accent); color: var(--accent); }
+
+/* ---- Collapsible panels ---- */
+.collapse-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 0; border: 0; background: none;
+  font: inherit; font-size: 0.85rem; font-weight: 600; color: var(--muted); cursor: pointer; text-align: left;
+}
+.collapse-btn:hover { color: var(--text); }
+.collapse-chev { flex: none; transition: transform 0.15s; }
+.collapse-btn[aria-expanded="false"] .collapse-chev { transform: rotate(-90deg); }
+.collapse-summary { font-weight: 400; opacity: 0.8; }
+.collapsible-body { margin-top: 6px; display: flex; flex-direction: column; gap: 12px; }
+.collapsible-body[hidden] { display: none; }
 
 .hint { margin: 0; color: var(--muted); font-size: 0.75rem; }
 
@@ -165,7 +216,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   background: var(--surface); color: var(--text); border: 1px solid var(--border);
   border-radius: 999px; height: 34px; padding: 0 12px; font: inherit; font-size: 0.875rem;
 }
-.icon-btn.skip { width: 42px; height: 42px; }
+.icon-btn.skip { width: 52px; height: 52px; }
+.transport .chip { height: 42px; padding: 0 15px; font-size: 1.1rem; gap: 8px; }
 
 /* ---- Rhythm map ---- */
 .rhythm { display: flex; gap: 10px; align-items: stretch; }

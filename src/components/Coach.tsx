@@ -79,9 +79,23 @@ export function Coach({ player, rhythm, loop, syncLines, onSyncLines }: Props) {
     const ms = rhythm.moments;
     if (!ms.length) return;
     const t = player.currentTime();
+    // Stay inside what's repeating (the loop, or the zoomed-in stretch),
+    // wrapping round at either end; otherwise stop at the song's ends.
+    const repeating = player.state.loop.enabled || player.state.window !== null;
+    const r = player.range();
+    const first = momentIndexAt(ms, r.start - 2e-6) + 1;
+    const last = momentIndexAt(ms, r.end - 2e-6);
+    if (first > last) {
+      setStepInfo("No notes in the selected stretch.");
+      return;
+    }
     // Next: first moment after now. Previous: last moment before now.
     let i = dir === 1 ? momentIndexAt(ms, t + 0.03) + 1 : momentIndexAt(ms, t - 0.03);
-    i = Math.max(0, Math.min(ms.length - 1, i));
+    if (repeating) {
+      if (i > last || i < first) i = dir === 1 ? first : last;
+    } else {
+      i = Math.max(first, Math.min(last, i));
+    }
     const m = ms[i];
     void player.strikeAt(m.time);
     const pos = positionOf(rhythm, m.time);

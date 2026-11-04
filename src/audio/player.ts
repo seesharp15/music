@@ -28,10 +28,30 @@ export interface LoopRange {
   end: number;
 }
 
+export interface TimeRange {
+  start: number;
+  end: number;
+}
+
+/**
+ * The stretch that actually plays on repeat: the loop (or the whole song)
+ * clipped to the visible window when the timeline is zoomed in. If the loop
+ * is mostly out of view, what's visible wins.
+ */
+export function playRange(loop: LoopRange, visible: TimeRange | null, duration: number): TimeRange {
+  const base = loop.enabled ? loop : { start: 0, end: duration };
+  if (!visible) return { start: base.start, end: base.end };
+  const start = Math.max(base.start, visible.start);
+  const end = Math.min(base.end, visible.end);
+  return end - start >= MIN_LOOP ? { start, end } : { start: visible.start, end: visible.end };
+}
+
 export interface PlayerState {
   playing: boolean;
   rate: number;
   loop: LoopRange;
+  /** The visible part of the timeline while zoomed in; it loops too. */
+  window: TimeRange | null;
   levels: Record<Hand, HandLevel>;
   sound: SoundId;
   /** Status of the sampled grand piano, which needs a download. */
@@ -73,6 +93,7 @@ export class Player {
       playing: false,
       rate: 1,
       loop: { enabled: false, start: 0, end: this.duration },
+      window: null,
       levels: { L: "on", R: "on" },
       sound: prefs.sound ?? "clear",
       piano: "idle",
@@ -109,6 +130,16 @@ export class Player {
 
   getState = (): PlayerState => this._state;
 
+  /** What plays on repeat right now; see `playRange`. */
+  range(): TimeRange {
+    return playRange(this._state.loop, this._state.window, this.duration);
+  }
+
+  /** Whether playback wraps at the end of `range()` rather than stopping. */
+  private get repeating(): boolean {
+    return this._state.loop.enabled || this._state.window !== null;
+  }
+
   private update(patch: Partial<PlayerState>) {
     this._state = { ...this._state, ...patch };
     this.listeners.forEach((fn) => fn());
@@ -127,10 +158,10 @@ export class Player {
   async play() {
     if (this._state.playing) return;
     await Tone.start();
-    const { loop } = this._state;
+    const r = this.range();
     let t = this.anchorSong;
-    if (loop.enabled && (t < loop.start || t >= loop.end)) t = loop.start;
-    if (!loop.enabled && t >= this.duration) t = 0;
+    if (this.repeating && (t < r.start || t >= r.end)) t = r.start;
+    if (!this.repeating && t >= this.duration) t = 0;
     this.anchorSong = t;
     this.anchorCtx = this.now();
     this.scheduledUpTo = t;
@@ -163,9 +194,10 @@ export class Player {
 
   /** Jump by 5 seconds of listening time, so slower speeds take smaller steps. */
   skip(direction: 1 | -1) {
-    const { loop, rate } = this._state;
+    const { rate } = this._state;
+    const r = this.range();
     let t = this.currentTime() + direction * SKIP_LISTEN_SECONDS * rate;
-    if (loop.enabled) t = clamp(t, loop.start, loop.end - 0.05);
+    if (this.repeating) t = clamp(t, r.start, r.end - 0.05);
     this.seek(t);
   }
 
@@ -180,10 +212,26 @@ export class Player {
     loop.start = clamp(loop.start, 0, this.duration - MIN_LOOP);
     loop.end = clamp(loop.end, loop.start + MIN_LOOP, this.duration);
     this.update({ loop });
-    if (loop.enabled) {
-      const t = this.currentTime();
-      if (t < loop.start || t >= loop.end) this.seek(loop.start);
-    }
+    if (loop.enabled) this.keepInRange();
+  }
+
+  /** Set (or clear) the visible window. A playhead left outside it jumps to its start. */
+  setWindow(visible: TimeRange | null) {
+    const w = this._state.window;
+    if (w === visible || (w && visible && w.start === visible.start && w.end === visible.end)) return;
+    this.update({ window: visible });
+    if (visible) this.keepInRange();
+  }
+
+  /** Back to the start of whatever plays on repeat (or of the song). */
+  restart() {
+    this.seek(this.range().start);
+  }
+
+  private keepInRange() {
+    const t = this.currentTime();
+    const r = this.range();
+    if (t < r.start || t >= r.end) this.seek(r.start);
   }
 
   setLevel(hand: Hand, level: HandLevel) {
@@ -331,21 +379,22 @@ export class Player {
   }
 
   private tick() {
-    const { loop, rate } = this._state;
+    const { rate } = this._state;
+    const range = this.range();
     let t = this.currentTime();
-    const end = loop.enabled ? loop.end : this.duration;
+    const end = range.end;
 
     if (t >= end) {
-      if (!loop.enabled) {
+      if (!this.repeating) {
         this.anchorSong = this.duration;
         this.stopTimer();
         this.update({ playing: false });
         return;
       }
       // Wrap seamlessly: re-anchor at the exact moment the loop end was reached.
-      this.anchorCtx += (loop.end - this.anchorSong) / rate;
-      this.anchorSong = loop.start;
-      this.scheduledUpTo = loop.start;
+      this.anchorCtx += (end - this.anchorSong) / rate;
+      this.anchorSong = range.start;
+      this.scheduledUpTo = range.start;
       t = this.currentTime();
       this.wrapListeners.forEach((fn) => fn());
       if (this._state.rate !== rate) return; // a listener changed the speed; next tick reschedules
