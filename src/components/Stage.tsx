@@ -10,11 +10,18 @@ const VISIBLE_SECONDS = 3; // song seconds shown above the keyboard
 /** Which keys the piano shows. */
 export type KeyMode = "all" | "song" | "view";
 
-const MIN_WHITES = 15; // "In view" never narrows past ~2 octaves
-const VIEW_LOOKAHEAD = 0.6; // s past the top of the waterfall, so keys widen before notes appear
-const GROW_TAU = 0.18; // s: widening to take in a new note is quick…
-const SHRINK_TAU = 2.2; // …narrowing again is gentle
-const DRIFT_TAU = 2.5; // s: the centre only drifts slowly toward the music
+// "In view" keeps its middle still and grows around it. It only moves over, in
+// one glide, once the music's middle (judged well ahead) has wandered off, and
+// only narrows, in one step, once there's plenty to spare.
+const MIN_WHITES = 15; // never narrower than ~2 octaves
+const VIEW_LOOKAHEAD = 0.6; // song s past the top of the waterfall, so keys widen before notes appear
+const MARGIN = 1; // white keys either side of the outermost note
+const CENTRE_LOOKAHEAD = 10; // song s ahead (and 1 behind) used to judge where the middle belongs
+const RECENTER_AT = 4; // white keys the music's middle may wander before the view moves over
+const SHRINK_AT = 6; // spare white keys (each side) before the view narrows
+const GROW_TAU = 0.18; // s: widening to take in a new note
+const SHRINK_TAU = 0.6; // s: a batched narrowing
+const MOVE_TAU = 0.35; // s: a batched move over
 const SWITCH_TAU = 0.22; // s: changing mode, or All/Song
 
 interface Props {
@@ -49,7 +56,10 @@ export function Stage({ song, player, levels, rhythm, syncLines, keys }: Props) 
     // The visible keys as a centre and half-width in white-key units, eased each frame.
     let centre = (songSpan[0] + songSpan[1]) / 2;
     let half = (songSpan[1] - songSpan[0]) / 2;
+    let centreTo = centre; // where the view is heading; only changes on a move or resize
+    let halfTo = half;
     let lastNeed: [number, number] = [songSpan[0], songSpan[1]];
+    let lastGoal = centre;
     let lastFrame = performance.now();
     let first = true;
 
@@ -72,39 +82,54 @@ export function Stage({ song, player, levels, rhythm, syncLines, keys }: Props) 
     const ease = (x: number, target: number, tau: number, dt: number) =>
       reduced || first ? target : x + (target - x) * (1 - Math.exp(-dt / tau));
 
-    /** Keys the notes from just before now to past the top of the waterfall need. */
-    const viewNeed = (t: number): [number, number] => {
+    /** Outermost keys (white-key units) of the notes sounding between song times t0 and t1. */
+    const extent = (t0: number, t1: number): [number, number] | null => {
       let lo = Infinity;
       let hi = -Infinity;
       for (const n of song.notes) {
-        if (n.time > t + VISIBLE_SECONDS + VIEW_LOOKAHEAD) break;
-        if (n.time + n.duration < t - 0.1) continue;
+        if (n.time > t1) break;
+        if (n.time + n.duration < t0) continue;
         const [a, b] = keySpan(n.pitch);
         lo = Math.min(lo, a);
         hi = Math.max(hi, b);
       }
-      // A quiet stretch keeps whatever was last needed.
-      if (lo <= hi) lastNeed = [lo - 1, hi + 1];
-      return lastNeed;
+      return lo <= hi ? [lo, hi] : null;
     };
 
     /** Ease the visible keys toward what the mode wants, then lay them out. */
     const frameKeys = (t: number, dt: number) => {
       const mode = opts.current.keys;
-      const [a, b] = mode === "all" ? [0, TOTAL_WHITES] : mode === "song" ? songSpan : viewNeed(t);
       const minHalf = Math.min(MIN_WHITES, TOTAL_WHITES) / 2;
-      if (mode === "view") {
-        // Hold the middle steady and grow around it; the centre only drifts slowly
-        // toward the music, so the player never loses their place.
-        centre = ease(centre, (a + b) / 2, DRIFT_TAU, dt);
-        const cover = Math.max(minHalf, centre - a, b - centre);
-        half = ease(half, cover, cover > half ? GROW_TAU : SHRINK_TAU, dt);
+      let moveTau = SWITCH_TAU;
+      let halfTau = SWITCH_TAU;
+      if (mode !== "view") {
+        const [a, b] = mode === "all" ? [0, TOTAL_WHITES] : songSpan;
+        centreTo = (a + b) / 2;
+        halfTo = Math.max(minHalf, (b - a) / 2);
       } else {
-        centre = ease(centre, (a + b) / 2, SWITCH_TAU, dt);
-        half = ease(half, Math.max(minHalf, (b - a) / 2), SWITCH_TAU, dt);
+        // What must be on screen now, and (judged further ahead) where the middle belongs.
+        // A quiet stretch keeps the last of each.
+        const near = extent(t - 0.1, t + VISIBLE_SECONDS + VIEW_LOOKAHEAD);
+        if (near) lastNeed = [near[0] - MARGIN, near[1] + MARGIN];
+        const far = extent(t - 1, t + CENTRE_LOOKAHEAD);
+        if (far) lastGoal = (far[0] + far[1]) / 2;
+        const [a, b] = lastNeed;
+        const coverAt = (c: number) => Math.max(minHalf, c - a, b - c);
+        if (Math.abs(lastGoal - centreTo) > RECENTER_AT) {
+          centreTo = lastGoal; // the music has moved over: follow it, in one glide
+          halfTo = coverAt(centreTo);
+        }
+        const cover = coverAt(centreTo);
+        if (cover > halfTo) halfTo = cover; // grow around the still middle
+        else if (halfTo - cover > SHRINK_AT) halfTo = cover + SHRINK_AT / 2; // narrow, once, with room to spare
+        moveTau = MOVE_TAU;
+        halfTau = halfTo > half ? GROW_TAU : SHRINK_TAU;
       }
-      half = Math.min(half, TOTAL_WHITES / 2);
-      centre = Math.min(Math.max(centre, half), TOTAL_WHITES - half);
+      // Stay on the keyboard; sliding in from an edge still covers everything needed.
+      halfTo = Math.min(halfTo, TOTAL_WHITES / 2);
+      centreTo = Math.min(Math.max(centreTo, halfTo), TOTAL_WHITES - halfTo);
+      centre = ease(centre, centreTo, moveTau, dt);
+      half = ease(half, halfTo, halfTau, dt);
       first = false;
       return layoutKeyboard(centre - half, centre + half, width);
     };
