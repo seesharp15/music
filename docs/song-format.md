@@ -6,16 +6,16 @@ Every tutorial is a single JSON file in `public/songs/`, listed in
 ```jsonc
 {
   "format": "piano-song/v1",
-  "id": "ode-to-joy",
-  "title": "Ode to Joy",
-  "artist": "Ludwig van Beethoven",
+  "id": "rewrite-the-stars",
+  "title": "Rewrite the Stars",
+  "artist": "The Greatest Showman",
   "arranger": "…",
   "source": "https://…",          // where the arrangement came from
   "bpm": 100,                       // optional, for display / beat grid
   "timeSignature": [4, 4],          // optional
   "duration": 38.4,                 // optional, seconds; defaults to last note end
   "sections": [                     // optional, become one-tap loop presets
-    { "name": "Phrase A", "start": 0, "end": 9.6 }
+    { "name": "Intro (bars 1–8)", "start": 0, "end": 15.373 }
   ],
   "notes": [
     { "pitch": 64, "time": 0.0, "duration": 0.55, "hand": "R", "velocity": 0.8 }
