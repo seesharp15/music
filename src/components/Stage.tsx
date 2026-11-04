@@ -182,9 +182,10 @@ function drawKeyboard(
     ctx.fillRect(k.x + 0.5, top, k.w - 1, kh);
     ctx.fillStyle = "rgba(0,0,0,0.25)";
     ctx.fillRect(k.x + k.w - 0.5, top, 1, kh);
-    if (p % 12 === 0 && whiteW > 14) {
-      ctx.fillStyle = "rgba(0,0,0,0.45)";
-      ctx.font = `500 ${Math.min(11, whiteW * 0.45)}px system-ui, sans-serif`;
+    // Label every C with its octave (C3, C4…), sized to the key so it shows on phones too.
+    if (p % 12 === 0 && whiteW >= 6) {
+      ctx.fillStyle = "rgba(0,0,0,0.72)";
+      ctx.font = `600 ${Math.max(8, Math.min(13, whiteW * 0.5))}px system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.fillText(noteName(p), k.x + k.w / 2, top + kh - 6);
     }
