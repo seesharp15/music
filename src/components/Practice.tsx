@@ -7,7 +7,7 @@ import { HAND_COLORS } from "./colors";
 import { Coach } from "./Coach";
 import { Collapsible } from "./Collapsible";
 import { RhythmMap } from "./RhythmMap";
-import { Stage } from "./Stage";
+import { Stage, type KeyMode } from "./Stage";
 import { StepKeys, StepThrough } from "./StepThrough";
 import { Trimmer, formatTime } from "./Trimmer";
 
@@ -27,7 +27,14 @@ interface Prefs {
   sound: SoundId;
   stereo: boolean;
   syncLines: boolean;
+  keyMode: KeyMode;
 }
+
+const KEY_MODES: { id: KeyMode; label: string; title: string }[] = [
+  { id: "all", label: "All", title: "All 88 keys" },
+  { id: "song", label: "Song", title: "The keys this song uses" },
+  { id: "view", label: "In view", title: "Just the keys for the notes in view; follows the music" },
+];
 const PREFS_KEY = "piano-tutor:prefs";
 function loadPrefs(): Partial<Prefs> {
   try {
@@ -60,6 +67,7 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
   const { playing, stepping, rate, loop, levels, sound, piano, stereo, metronome } = state;
   const rhythm = useMemo(() => analyzeRhythm(song), [song]);
   const [syncLines, setSyncLines] = useState(() => loadPrefs().syncLines ?? true);
+  const [keyMode, setKeyMode] = useState<KeyMode>(() => loadPrefs().keyMode ?? "song");
   const [clears, setClears] = useState(0); // bumped to zoom the timeline back out
   const [speedDrag, setSpeedDrag] = useState(false);
   useEffect(() => {
@@ -110,7 +118,7 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
   const toggleLoop = () =>
     player.state.loop.enabled || player.state.window ? playWholeSong() : startLoop();
 
-  useEffect(() => savePrefs({ sound, stereo, syncLines }), [sound, stereo, syncLines]);
+  useEffect(() => savePrefs({ sound, stereo, syncLines, keyMode }), [sound, stereo, syncLines, keyMode]);
 
   // Keyboard shortcuts.
   useEffect(() => {
@@ -200,7 +208,21 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
       <StepKeys player={player} rhythm={rhythm} />
 
       <div className="stage-wrap">
-        <Stage song={song} player={player} levels={levels} rhythm={rhythm} syncLines={syncLines} />
+        <Stage song={song} player={player} levels={levels} rhythm={rhythm} syncLines={syncLines} keys={keyMode} />
+        <div className="stage-keys" role="group" aria-label="Keys shown">
+          <span>Keys</span>
+          {KEY_MODES.map((m) => (
+            <button
+              key={m.id}
+              className={keyMode === m.id ? "is-on" : ""}
+              aria-pressed={keyMode === m.id}
+              title={m.title}
+              onClick={() => setKeyMode(m.id)}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
         {soundNote && <div className="stage-note">{soundNote}</div>}
       </div>
 

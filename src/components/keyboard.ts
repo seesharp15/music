@@ -29,22 +29,37 @@ export function keyRangeFor(pitches: number[]): [number, number] {
   return [low, high];
 }
 
-export function layoutKeyboard(low: number, high: number, width: number): KeyboardLayout {
-  const whites: number[] = [];
-  for (let p = low; p <= high; p++) if (!isBlack(p)) whites.push(p);
-  const whiteW = width / whites.length;
-  const blackW = whiteW * 0.62;
+export const LOWEST_KEY = 21; // A0
+export const HIGHEST_KEY = 108; // C8
+export const TOTAL_WHITES = 52;
+const BLACK_W = 0.62; // black key width, in white keys
+
+/** White keys from A0 up to (not including) each pitch. */
+const WHITES_BELOW: number[] = [];
+for (let p = LOWEST_KEY, w = 0; p <= HIGHEST_KEY; p++) {
+  WHITES_BELOW[p] = w;
+  if (!isBlack(p)) w++;
+}
+
+/** Where a key sits in white-key units: A0 starts at 0, C8 ends at 52. */
+export function keySpan(p: number): [number, number] {
+  const w = WHITES_BELOW[Math.min(HIGHEST_KEY, Math.max(LOWEST_KEY, p))];
+  return isBlack(p) ? [w - BLACK_W / 2, w + BLACK_W / 2] : [w, w + 1];
+}
+
+/**
+ * Lay out the keys between white-key positions `lo`..`hi` (fractions allowed,
+ * so the view can zoom smoothly) across `width` pixels.
+ */
+export function layoutKeyboard(lo: number, hi: number, width: number): KeyboardLayout & { whiteW: number } {
+  const whiteW = width / (hi - lo);
   const keys = new Map<number, KeyRect>();
-  let wi = 0;
-  for (let p = low; p <= high; p++) {
-    if (isBlack(p)) {
-      keys.set(p, { x: wi * whiteW - blackW / 2, w: blackW, black: true });
-    } else {
-      keys.set(p, { x: wi * whiteW, w: whiteW, black: false });
-      wi++;
-    }
+  for (let p = LOWEST_KEY; p <= HIGHEST_KEY; p++) {
+    const [a, b] = keySpan(p);
+    if (b < lo || a > hi) continue;
+    keys.set(p, { x: (a - lo) * whiteW, w: (b - a) * whiteW, black: isBlack(p) });
   }
-  return { low, high, keys };
+  return { low: Math.ceil(lo), high: Math.floor(hi), keys, whiteW };
 }
 
 const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];

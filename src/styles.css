@@ -58,8 +58,20 @@ button { font: inherit; color: inherit; }
   border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border);
 }
 .stage { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+/* Keys shown: tucked into the top-right corner of the waterfall. */
+.stage-keys {
+  position: absolute; top: 8px; right: 8px; display: flex; align-items: center; gap: 2px;
+  padding: 2px 2px 2px 8px; border-radius: 999px; background: rgba(0, 0, 0, 0.55);
+  font-size: 0.72rem; color: var(--muted);
+}
+.stage-keys span { margin-right: 4px; }
+.stage-keys button {
+  height: 22px; padding: 0 8px; border: 0; border-radius: 999px; background: none;
+  color: var(--muted); font: inherit; cursor: pointer;
+}
+.stage-keys button.is-on { background: rgba(255, 255, 255, 0.16); color: var(--text); }
 .stage-note {
-  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  position: absolute; top: 40px; left: 50%; transform: translateX(-50%);
   background: rgba(0,0,0,0.6); padding: 4px 10px; border-radius: 999px;
   font-size: 0.8rem; color: var(--muted);
 }

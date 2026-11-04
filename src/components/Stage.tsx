@@ -3,9 +3,19 @@ import type { HandLevel, Player } from "../audio/player";
 import type { Rhythm } from "../song/rhythm";
 import type { Hand, Song } from "../song/types";
 import { HAND_COLORS } from "./colors";
-import { keyRangeFor, layoutKeyboard, noteName } from "./keyboard";
+import { TOTAL_WHITES, keyRangeFor, keySpan, layoutKeyboard, noteName } from "./keyboard";
 
 const VISIBLE_SECONDS = 3; // song seconds shown above the keyboard
+
+/** Which keys the piano shows. */
+export type KeyMode = "all" | "song" | "view";
+
+const MIN_WHITES = 15; // "In view" never narrows past ~2 octaves
+const VIEW_LOOKAHEAD = 0.6; // s past the top of the waterfall, so keys widen before notes appear
+const GROW_TAU = 0.18; // s: widening to take in a new note is quick…
+const SHRINK_TAU = 2.2; // …narrowing again is gentle
+const DRIFT_TAU = 2.5; // s: the centre only drifts slowly toward the music
+const SWITCH_TAU = 0.22; // s: changing mode, or All/Song
 
 interface Props {
   song: Song;
@@ -14,16 +24,21 @@ interface Props {
   rhythm: Rhythm;
   /** Draw a line linking left- and right-hand notes that start together. */
   syncLines: boolean;
+  keys: KeyMode;
 }
 
 const LEVEL_ALPHA: Record<HandLevel, number> = { on: 1, soft: 0.55, off: 0.2 };
 
 /** Synthesia-style falling notes above a piano keyboard. */
-export function Stage({ song, player, levels, rhythm, syncLines }: Props) {
+export function Stage({ song, player, levels, rhythm, syncLines, keys }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const range = useMemo(() => keyRangeFor(song.notes.map((n) => n.pitch)), [song]);
-  const opts = useRef({ levels, syncLines });
-  opts.current = { levels, syncLines };
+  // The song's keys, in white-key units.
+  const songSpan = useMemo(() => {
+    const [low, high] = keyRangeFor(song.notes.map((n) => n.pitch));
+    return [keySpan(low)[0], keySpan(high)[1]] as const;
+  }, [song]);
+  const opts = useRef({ levels, syncLines, keys });
+  opts.current = { levels, syncLines, keys };
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -31,7 +46,12 @@ export function Stage({ song, player, levels, rhythm, syncLines }: Props) {
     let raf = 0;
     let width = 0;
     let height = 0;
-    let layout = layoutKeyboard(range[0], range[1], 1);
+    // The visible keys as a centre and half-width in white-key units, eased each frame.
+    let centre = (songSpan[0] + songSpan[1]) / 2;
+    let half = (songSpan[1] - songSpan[0]) / 2;
+    let lastNeed: [number, number] = [songSpan[0], songSpan[1]];
+    let lastFrame = performance.now();
+    let first = true;
 
     const resize = () => {
       const dpr = window.devicePixelRatio || 1;
@@ -40,7 +60,6 @@ export function Stage({ song, player, levels, rhythm, syncLines }: Props) {
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      layout = layoutKeyboard(range[0], range[1], width);
     };
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
@@ -49,13 +68,57 @@ export function Stage({ song, player, levels, rhythm, syncLines }: Props) {
     const beat = song.bpm ? 60 / song.bpm : 0;
     const beatsPerBar = song.timeSignature?.[0] ?? 4;
 
-    const draw = () => {
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    const ease = (x: number, target: number, tau: number, dt: number) =>
+      reduced || first ? target : x + (target - x) * (1 - Math.exp(-dt / tau));
+
+    /** Keys the notes from just before now to past the top of the waterfall need. */
+    const viewNeed = (t: number): [number, number] => {
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (const n of song.notes) {
+        if (n.time > t + VISIBLE_SECONDS + VIEW_LOOKAHEAD) break;
+        if (n.time + n.duration < t - 0.1) continue;
+        const [a, b] = keySpan(n.pitch);
+        lo = Math.min(lo, a);
+        hi = Math.max(hi, b);
+      }
+      // A quiet stretch keeps whatever was last needed.
+      if (lo <= hi) lastNeed = [lo - 1, hi + 1];
+      return lastNeed;
+    };
+
+    /** Ease the visible keys toward what the mode wants, then lay them out. */
+    const frameKeys = (t: number, dt: number) => {
+      const mode = opts.current.keys;
+      const [a, b] = mode === "all" ? [0, TOTAL_WHITES] : mode === "song" ? songSpan : viewNeed(t);
+      const minHalf = Math.min(MIN_WHITES, TOTAL_WHITES) / 2;
+      if (mode === "view") {
+        // Hold the middle steady and grow around it; the centre only drifts slowly
+        // toward the music, so the player never loses their place.
+        centre = ease(centre, (a + b) / 2, DRIFT_TAU, dt);
+        const cover = Math.max(minHalf, centre - a, b - centre);
+        half = ease(half, cover, cover > half ? GROW_TAU : SHRINK_TAU, dt);
+      } else {
+        centre = ease(centre, (a + b) / 2, SWITCH_TAU, dt);
+        half = ease(half, Math.max(minHalf, (b - a) / 2), SWITCH_TAU, dt);
+      }
+      half = Math.min(half, TOTAL_WHITES / 2);
+      centre = Math.min(Math.max(centre, half), TOTAL_WHITES - half);
+      first = false;
+      return layoutKeyboard(centre - half, centre + half, width);
+    };
+
+    const draw = (now: number) => {
       raf = requestAnimationFrame(draw);
+      const dt = Math.min(0.1, (now - lastFrame) / 1000);
+      lastFrame = now;
       const t = player.currentTime();
       const kbH = Math.round(Math.min(150, Math.max(70, height * 0.22)));
       const hitY = height - kbH;
       const pps = hitY / VISIBLE_SECONDS;
-      const whiteW = width / countWhites(layout);
+      const layout = frameKeys(t, dt);
+      const whiteW = layout.whiteW;
 
       ctx.fillStyle = "#0f1115";
       ctx.fillRect(0, 0, width, height);
@@ -152,15 +215,9 @@ export function Stage({ song, player, levels, rhythm, syncLines }: Props) {
       cancelAnimationFrame(raf);
       ro.disconnect();
     };
-  }, [song, player, range, rhythm]);
+  }, [song, player, songSpan, rhythm]);
 
   return <canvas ref={canvasRef} className="stage" aria-label="Falling notes piano roll" />;
-}
-
-function countWhites(layout: ReturnType<typeof layoutKeyboard>) {
-  let n = 0;
-  for (const k of layout.keys.values()) if (!k.black) n++;
-  return n;
 }
 
 function drawKeyboard(
