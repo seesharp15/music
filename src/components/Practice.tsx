@@ -208,6 +208,11 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
             </button>
           </div>
 
+        </div>
+
+        <StepThrough player={player} rhythm={rhythm} />
+
+        <div className="controls">
           <div className="control-group speed">
             <label htmlFor="speed">Speed</label>
             <input
@@ -227,8 +232,6 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
             ))}
           </div>
         </div>
-
-        <StepThrough player={player} rhythm={rhythm} />
       </Collapsible>
 
       <Collapsible
