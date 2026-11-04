@@ -233,7 +233,7 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
         <div className="controls">
           <div className="control-group transport">
             <button className="icon-btn" onClick={restart} aria-label="Back to start" title="Back to start (R)">
-              <svg viewBox="0 0 24 24" width="25" height="25" aria-hidden>
+              <svg viewBox="0 0 24 24" width="31" height="31" aria-hidden>
                 <path d="M6 5h2v14H6zM20 5v14L9 12z" fill="currentColor" />
               </svg>
             </button>
@@ -252,11 +252,11 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
               title="Play / pause (Space)"
             >
               {playing ? (
-                <svg viewBox="0 0 24 24" width="32" height="32" aria-hidden>
+                <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden>
                   <path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor" />
                 </svg>
               ) : (
-                <svg viewBox="0 0 24 24" width="32" height="32" aria-hidden>
+                <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden>
                   <path d="M8 5v14l11-7z" fill="currentColor" />
                 </svg>
               )}
@@ -349,7 +349,7 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
 
 function SkipIcon({ dir }: { dir: 1 | -1 }) {
   return (
-    <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden style={dir === 1 ? { transform: "scaleX(-1)" } : undefined}>
+    <svg viewBox="0 0 24 24" width="35" height="35" aria-hidden style={dir === 1 ? { transform: "scaleX(-1)" } : undefined}>
       <path
         d="M12 5V2L7 6l5 4V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z"
         fill="currentColor"
