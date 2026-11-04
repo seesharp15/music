@@ -11,10 +11,15 @@ import { Stage } from "./Stage";
 import { StepThrough } from "./StepThrough";
 import { Trimmer, formatTime } from "./Trimmer";
 
-const SPEED_MIN = 0.25;
-const SPEED_MAX = 1.5;
-const SPEED_MARKS = [0.5, 0.75, 1];
-const SPEED_SNAP = 0.025; // within this of a mark, the slider settles on it
+const SPEED_MIN = 0.05;
+const SPEED_MAX = 2;
+const SPEED_MARKS = [0.1, 0.5, 0.75, 1];
+const SPEED_SNAP = 0.07; // within ~7% of a mark, the slider settles on it
+const SPEED_STEPS = 1000; // slider resolution
+const SPEED_LOG_SPAN = Math.log(SPEED_MAX / SPEED_MIN);
+/** Slider position (0–1) for a speed. Logarithmic, so slow speeds get room and 100–200% stays short. */
+const speedToPos = (r: number) => Math.log(r / SPEED_MIN) / SPEED_LOG_SPAN;
+const posToSpeed = (p: number) => SPEED_MIN * Math.exp(p * SPEED_LOG_SPAN);
 const NEXT_LEVEL: Record<HandLevel, HandLevel> = { on: "soft", soft: "off", off: "on" };
 const LEVEL_LABEL: Record<HandLevel, string> = { on: "On", soft: "Soft", off: "Off" };
 
@@ -121,9 +126,11 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
       } else if (e.key === "ArrowRight") {
         player.skip(1);
       } else if (e.key === "ArrowDown" || e.key === "-") {
-        player.setRate(Math.max(SPEED_MIN, round2(player.state.rate - 0.05)));
+        const r = player.state.rate;
+        player.setRate(Math.max(SPEED_MIN, round2(r - (r > 0.25 + 1e-9 ? 0.05 : 0.01))));
       } else if (e.key === "ArrowUp" || e.key === "+" || e.key === "=") {
-        player.setRate(Math.min(SPEED_MAX, round2(player.state.rate + 0.05)));
+        const r = player.state.rate;
+        player.setRate(Math.min(SPEED_MAX, round2(r + (r >= 0.25 - 1e-9 ? 0.05 : 0.01))));
       } else if (e.key === "Home" || e.key === "r") {
         player.restart();
       } else if (e.key === "Escape") {
@@ -272,13 +279,13 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
             <label htmlFor="speed">Speed</label>
             <div
               className={`speed-slider ${speedDrag ? "is-dragging" : ""}`}
-              style={{ "--fill": (rate - SPEED_MIN) / (SPEED_MAX - SPEED_MIN) } as React.CSSProperties}
+              style={{ "--fill": speedToPos(rate) } as React.CSSProperties}
             >
               {SPEED_MARKS.map((m) => (
                 <span
                   key={m}
                   className={`speed-mark ${rate === m ? "is-on" : ""}`}
-                  style={{ "--at": (m - SPEED_MIN) / (SPEED_MAX - SPEED_MIN) } as React.CSSProperties}
+                  style={{ "--at": speedToPos(m) } as React.CSSProperties}
                   aria-hidden
                 >
                   <span>{Math.round(m * 100)}</span>
@@ -287,13 +294,13 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
               <input
                 id="speed"
                 type="range"
-                min={SPEED_MIN}
-                max={SPEED_MAX}
-                step={0.01}
-                value={rate}
+                min={0}
+                max={SPEED_STEPS}
+                step={1}
+                value={Math.round(speedToPos(rate) * SPEED_STEPS)}
                 aria-valuetext={`${Math.round(rate * 100)}%`}
                 onPointerDown={() => setSpeedDrag(true)}
-                onChange={(e) => player.setRate(snapRate(Number(e.target.value)))}
+                onChange={(e) => player.setRate(snapRate(posToSpeed(Number(e.target.value) / SPEED_STEPS)))}
               />
               {/* The visible thumb (the native one is transparent) and, while dragging, a readout above the finger. */}
               <span className="speed-thumb mono" aria-hidden>
@@ -365,4 +372,4 @@ function SkipIcon({ dir }: { dir: 1 | -1 }) {
 const round2 = (x: number) => Math.round(x * 100) / 100;
 
 /** Settle on 50/75/100% when close, but leave every other value reachable. */
-const snapRate = (r: number) => SPEED_MARKS.find((m) => Math.abs(r - m) <= SPEED_SNAP) ?? round2(r);
+const snapRate = (r: number) => SPEED_MARKS.find((m) => Math.abs(Math.log(r / m)) <= SPEED_SNAP) ?? round2(r);
