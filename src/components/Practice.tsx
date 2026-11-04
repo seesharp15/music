@@ -11,7 +11,10 @@ import { Stage } from "./Stage";
 import { StepThrough } from "./StepThrough";
 import { Trimmer, formatTime } from "./Trimmer";
 
-const SPEED_PRESETS = [0.5, 0.75, 1];
+const SPEED_MIN = 0.25;
+const SPEED_MAX = 1.5;
+const SPEED_MARKS = [0.5, 0.75, 1];
+const SPEED_SNAP = 0.025; // within this of a mark, the slider settles on it
 const NEXT_LEVEL: Record<HandLevel, HandLevel> = { on: "soft", soft: "off", off: "on" };
 const LEVEL_LABEL: Record<HandLevel, string> = { on: "On", soft: "Soft", off: "Off" };
 
@@ -77,9 +80,9 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
       } else if (e.key === "ArrowRight") {
         player.skip(1);
       } else if (e.key === "ArrowDown" || e.key === "-") {
-        player.setRate(Math.max(0.25, round2(player.state.rate - 0.05)));
+        player.setRate(Math.max(SPEED_MIN, round2(player.state.rate - 0.05)));
       } else if (e.key === "ArrowUp" || e.key === "+" || e.key === "=") {
-        player.setRate(Math.min(1.5, round2(player.state.rate + 0.05)));
+        player.setRate(Math.min(SPEED_MAX, round2(player.state.rate + 0.05)));
       } else if (e.key === "Home" || e.key === "r") {
         player.restart();
       } else if (e.key === "Escape") {
@@ -215,21 +218,29 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
         <div className="controls">
           <div className="control-group speed">
             <label htmlFor="speed">Speed</label>
-            <input
-              id="speed"
-              type="range"
-              min={0.25}
-              max={1.5}
-              step={0.05}
-              value={rate}
-              onChange={(e) => player.setRate(Number(e.target.value))}
-            />
+            <div className="speed-slider">
+              {SPEED_MARKS.map((m) => (
+                <span
+                  key={m}
+                  className={`speed-mark ${rate === m ? "is-on" : ""}`}
+                  style={{ "--at": (m - SPEED_MIN) / (SPEED_MAX - SPEED_MIN) } as React.CSSProperties}
+                  aria-hidden
+                >
+                  <span>{Math.round(m * 100)}</span>
+                </span>
+              ))}
+              <input
+                id="speed"
+                type="range"
+                min={SPEED_MIN}
+                max={SPEED_MAX}
+                step={0.01}
+                value={rate}
+                style={{ "--fill": (rate - SPEED_MIN) / (SPEED_MAX - SPEED_MIN) } as React.CSSProperties}
+                onChange={(e) => player.setRate(snapRate(Number(e.target.value)))}
+              />
+            </div>
             <span className="mono speed-value">{Math.round(rate * 100)}%</span>
-            {SPEED_PRESETS.map((s) => (
-              <button key={s} className={`chip small ${rate === s ? "is-on" : ""}`} onClick={() => player.setRate(s)}>
-                {Math.round(s * 100)}%
-              </button>
-            ))}
           </div>
         </div>
       </Collapsible>
@@ -290,3 +301,6 @@ function SkipIcon({ dir }: { dir: 1 | -1 }) {
 }
 
 const round2 = (x: number) => Math.round(x * 100) / 100;
+
+/** Settle on 50/75/100% when close, but leave every other value reachable. */
+const snapRate = (r: number) => SPEED_MARKS.find((m) => Math.abs(r - m) <= SPEED_SNAP) ?? round2(r);
