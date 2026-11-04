@@ -57,7 +57,7 @@ export function Practice({ song }: { song: Song }) {
 
 function PracticeView({ song, player }: { song: Song; player: Player }) {
   const state = useSyncExternalStore(player.subscribe, player.getState);
-  const { playing, rate, loop, levels, sound, piano, stereo, metronome } = state;
+  const { playing, stepping, rate, loop, levels, sound, piano, stereo, metronome } = state;
   const rhythm = useMemo(() => analyzeRhythm(song), [song]);
   const [syncLines, setSyncLines] = useState(() => loadPrefs().syncLines ?? true);
   const [clears, setClears] = useState(0); // bumped to zoom the timeline back out
@@ -248,10 +248,11 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
             <button
               className="play-btn"
               onClick={() => player.toggle()}
-              aria-label={playing ? "Pause" : "Play"}
+              aria-label={playing ? "Pause" : stepping ? "Resume from this step" : "Play"}
               title="Play / pause (Space)"
             >
-              {playing ? (
+              {/* While stepping it shows pause (we're paused on a step); tapping resumes from there. */}
+              {playing || stepping ? (
                 <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden>
                   <path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor" />
                 </svg>
@@ -269,11 +270,10 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
             >
               <SkipIcon dir={1} />
             </button>
+            <StepThrough player={player} rhythm={rhythm} />
           </div>
 
         </div>
-
-        <StepThrough player={player} rhythm={rhythm} />
 
         <div className="controls">
           <div className="control-group speed">

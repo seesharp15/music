@@ -48,6 +48,8 @@ export function playRange(loop: LoopRange, visible: TimeRange | null, duration: 
 
 export interface PlayerState {
   playing: boolean;
+  /** Paused on a moment by stepping (or tapping the rhythm map); play resumes from it. */
+  stepping: boolean;
   rate: number;
   loop: LoopRange;
   /** The visible part of the timeline while zoomed in; it loops too. */
@@ -91,6 +93,7 @@ export class Player {
     this.song = song;
     this._state = {
       playing: false,
+      stepping: false,
       rate: 1,
       loop: { enabled: false, start: 0, end: this.duration },
       window: null,
@@ -165,7 +168,7 @@ export class Player {
     this.anchorSong = t;
     this.anchorCtx = this.now();
     this.scheduledUpTo = t;
-    this.update({ playing: true });
+    this.update({ playing: true, stepping: false });
     this.timer = setInterval(() => this.tick(), TICK_MS);
     this.tick();
   }
@@ -265,6 +268,7 @@ export class Player {
     if (this._state.playing) this.pause();
     this.seek(t);
     this.releaseAll();
+    if (!this._state.stepping) this.update({ stepping: true });
     const now = this.now() + 0.01;
     for (let i = lowerBound(this.song.notes, t - 0.03); i < this.song.notes.length; i++) {
       const n = this.song.notes[i];

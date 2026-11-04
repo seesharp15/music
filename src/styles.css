@@ -260,6 +260,14 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   border-radius: 999px; height: 34px; padding: 0 12px; font: inherit; font-size: 0.875rem;
 }
 .icon-btn.skip { width: 65px; height: 65px; }
+.step-group { display: flex; align-items: center; gap: 8px; }
+.step-sep { width: 1px; height: 44px; margin: 0 6px; background: var(--border); }
+.step-label { color: var(--muted); font-size: 0.85rem; }
+.icon-btn.step { width: 52px; height: 52px; }
+/* Too narrow for one row: the step group wraps under the transport, so drop the divider. */
+@media (max-width: 520px) {
+  .step-sep { display: none; }
+}
 .segmented {
   align-self: flex-start; display: inline-flex; padding: 3px; gap: 3px;
   border: 1px solid var(--border); border-radius: 999px; background: var(--surface);
