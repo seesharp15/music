@@ -1,3 +1,4 @@
 [
-  { "id": "rewrite-the-stars", "title": "Rewrite the Stars", "artist": "The Greatest Showman", "file": "rewrite-the-stars.json" }
+  { "id": "rewrite-the-stars", "title": "Rewrite the Stars", "artist": "The Greatest Showman", "file": "rewrite-the-stars.json" },
+  { "id": "divenire", "title": "Divenire", "artist": "Ludovico Einaudi", "file": "divenire.json" }
 ]

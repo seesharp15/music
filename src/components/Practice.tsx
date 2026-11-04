@@ -207,18 +207,21 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
           >
             Stereo split
           </button>
-          <button
-            className={`chip ${metronome ? "is-on" : ""}`}
-            onClick={() => player.setMetronome(!metronome)}
-            aria-pressed={metronome}
-            title="Click on every beat, accent on beat 1 (M)"
-          >
-            Metronome
-          </button>
+          {song.bpm && (
+            <button
+              className={`chip ${metronome ? "is-on" : ""}`}
+              onClick={() => player.setMetronome(!metronome)}
+              aria-pressed={metronome}
+              title="Click on every beat, accent on beat 1 (M)"
+            >
+              Metronome
+            </button>
+          )}
         </div>
       </div>
 
-      <RhythmMap player={player} rhythm={rhythm} levels={levels} duration={player.duration} />
+      {/* A song played freely (no steady tempo) has no beat grid to count along to. */}
+      {song.bpm && <RhythmMap player={player} rhythm={rhythm} levels={levels} duration={player.duration} />}
       <StepKeys player={player} rhythm={rhythm} />
 
       <div className="stage-wrap">
