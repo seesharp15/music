@@ -17,20 +17,19 @@ interface View {
 }
 
 const MIN_LOOP = 0.25;
-const HOLD_MS = 350; // hold still this long while dragging to zoom in
-const HOLD_SLOP_PX = 6; // movement allowed while "holding still"
-const ZOOM_STEP = 4; // each hold zooms in this much
-const MIN_SPAN = 2; // seconds visible at maximum zoom
-const EDGE_PX = 28; // drag this close to an edge to scroll when zoomed
-const PAN_SPEED = 1.5; // view widths per second at the very edge
-const TWEEN_MS = 220;
+const MIN_SPAN = 3; // seconds visible at the tightest zoom
+const FIT_PAD = 1.6; // visible span = loop length × this
+const EDGE_PX = 32; // drag a handle this close to an edge to widen the view
+const GROW_SPEED = 0.8; // view widths per second at full push
+const TWEEN_MS = 260;
 
 const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 
 /**
  * iPhone-clipper-style timeline: a miniature of the song with a yellow frame
- * whose handles set the loop range. Tap or drag elsewhere to seek. Holding a
- * drag still zooms in around the finger for finer control; releasing zooms out.
+ * whose handles set the loop range. Tap or drag elsewhere to seek. Whenever a
+ * loop is set the strip zooms to frame it; dragging a handle into an edge
+ * widens the view on that side.
  */
 export function Trimmer({ song, player, loop }: Props) {
   const stripRef = useRef<HTMLDivElement>(null);
@@ -47,12 +46,8 @@ export function Trimmer({ song, player, loop }: Props) {
     setViewState(v);
   };
 
-  const drag = useRef<{
-    kind: Drag;
-    x: number;
-    anchorX: number;
-    holdTimer: number | null;
-  } | null>(null);
+  const drag = useRef<{ kind: Drag; x: number } | null>(null);
+  const [showAll, setShowAll] = useState(false);
   const tween = useRef<{ from: View; to: View; t0: number } | null>(null);
 
   // ---- song overview -------------------------------------------------------
@@ -145,17 +140,16 @@ export function Trimmer({ song, player, loop }: Props) {
       const d = drag.current;
       const v = viewRef.current;
       const span = v.end - v.start;
-      if (d && !tween.current && span < duration - 0.001 && stripRef.current) {
+      if (d && d.kind !== "seek" && !tween.current && span < duration - 0.001 && stripRef.current) {
         const r = stripRef.current.getBoundingClientRect();
         const left = d.x - r.left;
         const right = r.right - d.x;
-        let dir = 0;
-        if (left < EDGE_PX) dir = -(1 - Math.max(left, 0) / EDGE_PX);
-        else if (right < EDGE_PX) dir = 1 - Math.max(right, 0) / EDGE_PX;
-        if (dir !== 0) {
-          const shift = dir * PAN_SPEED * span * dt;
-          const start = clamp(v.start + shift, 0, duration - span);
-          setView({ start, end: start + span });
+        const push = (dist: number) => Math.min(1, 1 - dist / EDGE_PX); // >1 when past the edge is capped
+        if (left < EDGE_PX && v.start > 0) {
+          setView({ start: Math.max(0, v.start - push(left) * GROW_SPEED * span * dt), end: v.end });
+          apply(d.x);
+        } else if (right < EDGE_PX && v.end < duration) {
+          setView({ start: v.start, end: Math.min(duration, v.end + push(right) * GROW_SPEED * span * dt) });
           apply(d.x);
         }
       }
@@ -205,40 +199,31 @@ export function Trimmer({ song, player, loop }: Props) {
     }
   };
 
-  const armHold = () => {
-    const d = drag.current;
-    if (!d) return;
-    if (d.holdTimer) window.clearTimeout(d.holdTimer);
-    d.holdTimer = window.setTimeout(zoomIn, HOLD_MS);
+  /** The view that frames the loop, or the whole song. */
+  const fitView = (): View => {
+    const l = player.state.loop;
+    if (!l.enabled) return full;
+    const span = Math.max(MIN_SPAN, (l.end - l.start) * FIT_PAD);
+    if (span >= duration) return full;
+    const mid = (l.start + l.end) / 2;
+    const start = clamp(mid - span / 2, 0, duration - span);
+    return { start, end: start + span };
   };
 
-  const zoomIn = () => {
-    const d = drag.current;
-    if (!d || !stripRef.current) return;
-    const v = tween.current?.to ?? viewRef.current;
-    const span = v.end - v.start;
-    const next = Math.max(MIN_SPAN, span / ZOOM_STEP);
-    if (next >= span - 0.001) return;
-    // Keep the time under the finger fixed on screen.
-    const r = stripRef.current.getBoundingClientRect();
-    if (span < duration - 0.001 && (d.x - r.left < EDGE_PX || r.right - d.x < EDGE_PX)) {
-      armHold(); // scrolling at an edge, not holding still
-      return;
-    }
-    const frac = clamp((d.x - r.left) / r.width, 0, 1);
-    const anchor = v.start + frac * span;
-    const start = clamp(anchor - frac * next, 0, duration - next);
-    animateTo({ start, end: start + next });
-    d.anchorX = d.x;
-  };
+  // Re-frame whenever the loop changes (but not mid-drag; that happens on release).
+  useEffect(() => {
+    if (drag.current) return;
+    setShowAll(false);
+    animateTo(fitView());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loop.enabled, loop.start, loop.end, duration]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     const target = e.target as HTMLElement;
     const kind = (target.closest("[data-handle]")?.getAttribute("data-handle") as Drag | null) ?? "seek";
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    drag.current = { kind, x: e.clientX, anchorX: e.clientX, holdTimer: null };
+    drag.current = { kind, x: e.clientX };
     apply(e.clientX);
-    armHold();
     e.preventDefault();
   };
 
@@ -247,17 +232,15 @@ export function Trimmer({ song, player, loop }: Props) {
     if (!d) return;
     d.x = e.clientX;
     apply(e.clientX);
-    if (Math.abs(e.clientX - d.anchorX) > HOLD_SLOP_PX) {
-      d.anchorX = e.clientX;
-      armHold();
-    }
   };
 
   const onPointerUp = () => {
     const d = drag.current;
-    if (d?.holdTimer) window.clearTimeout(d.holdTimer);
     drag.current = null;
-    if (viewRef.current.end - viewRef.current.start < duration - 0.001) animateTo(full);
+    if (d && d.kind !== "seek") {
+      setShowAll(false);
+      animateTo(fitView());
+    }
   };
 
   // ---- layout --------------------------------------------------------------
@@ -310,11 +293,21 @@ export function Trimmer({ song, player, loop }: Props) {
           0:00.0
         </span>
         <span className="trimmer-range mono">
-          {zoomed
-            ? `${loop.enabled ? `Loop ${formatTime(loop.start)} – ${formatTime(loop.end)} · ` : ""}Zoom ${zoom >= 10 ? Math.round(zoom) : zoom.toFixed(1)}×`
-            : loop.enabled
-              ? `Loop ${formatTime(loop.start)} – ${formatTime(loop.end)}`
-              : "Drag the yellow handles to loop. Hold still while dragging to zoom."}
+          {loop.enabled
+            ? `Loop ${formatTime(loop.start)} – ${formatTime(loop.end)}${zoomed ? ` · ${zoom >= 10 ? Math.round(zoom) : zoom.toFixed(1)}×` : ""}`
+            : "Drag the yellow handles to loop a passage"}
+          {loop.enabled && (showAll || zoomed) && (
+            <button
+              className="trimmer-fit"
+              onClick={() => {
+                const next = !showAll;
+                setShowAll(next);
+                animateTo(next ? full : fitView());
+              }}
+            >
+              {showAll ? "Back to loop" : "Whole song"}
+            </button>
+          )}
         </span>
         <span className="mono">{formatTime(duration)}</span>
       </div>
