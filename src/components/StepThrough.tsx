@@ -55,16 +55,14 @@ export function StepThrough({ player, rhythm }: { player: Player; rhythm: Rhythm
 
   return (
     <div className="control-group step-through">
-      <span className="group-label">Step through</span>
+      <span className="group-label">Step</span>
       <button className="chip" onClick={() => step(-1)} title="Previous moment (,)">
         ◀ Previous
       </button>
       <button className="chip" onClick={() => step(1)} title="Next moment (.)">
         Next ▶
       </button>
-      <span className="step-info mono">
-        {stepInfo ?? "Moves one moment at a time and plays exactly what is pressed together."}
-      </span>
+      {stepInfo && <span className="step-info mono">{stepInfo}</span>}
     </div>
   );
 }
