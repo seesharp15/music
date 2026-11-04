@@ -56,6 +56,18 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
   const rhythm = useMemo(() => analyzeRhythm(song), [song]);
   const [syncLines, setSyncLines] = useState(() => loadPrefs().syncLines ?? true);
   const [clears, setClears] = useState(0); // bumped to zoom the timeline back out
+  const [speedDrag, setSpeedDrag] = useState(false);
+  useEffect(() => {
+    if (!speedDrag) return;
+    // The finger can leave the slider mid-drag, so listen for the release anywhere.
+    const end = () => setSpeedDrag(false);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+    return () => {
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+    };
+  }, [speedDrag]);
   useWakeLock();
 
   /** Drop the loop and the zoom: back to the whole song. */
@@ -258,7 +270,10 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
         <div className="controls">
           <div className="control-group speed">
             <label htmlFor="speed">Speed</label>
-            <div className="speed-slider">
+            <div
+              className={`speed-slider ${speedDrag ? "is-dragging" : ""}`}
+              style={{ "--fill": (rate - SPEED_MIN) / (SPEED_MAX - SPEED_MIN) } as React.CSSProperties}
+            >
               {SPEED_MARKS.map((m) => (
                 <span
                   key={m}
@@ -276,11 +291,18 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
                 max={SPEED_MAX}
                 step={0.01}
                 value={rate}
-                style={{ "--fill": (rate - SPEED_MIN) / (SPEED_MAX - SPEED_MIN) } as React.CSSProperties}
+                aria-valuetext={`${Math.round(rate * 100)}%`}
+                onPointerDown={() => setSpeedDrag(true)}
                 onChange={(e) => player.setRate(snapRate(Number(e.target.value)))}
               />
+              {/* The visible thumb (the native one is transparent) and, while dragging, a readout above the finger. */}
+              <span className="speed-thumb mono" aria-hidden>
+                {Math.round(rate * 100)}%
+              </span>
+              <span className="speed-blip mono" aria-hidden>
+                {Math.round(rate * 100)}%
+              </span>
             </div>
-            <span className="mono speed-value">{Math.round(rate * 100)}%</span>
           </div>
         </div>
       </Collapsible>
