@@ -8,6 +8,7 @@ import { Coach } from "./Coach";
 import { Collapsible } from "./Collapsible";
 import { RhythmMap } from "./RhythmMap";
 import { Stage } from "./Stage";
+import { StepThrough } from "./StepThrough";
 import { Trimmer, formatTime } from "./Trimmer";
 
 const SPEED_PRESETS = [0.5, 0.75, 1];
@@ -226,6 +227,8 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
             ))}
           </div>
         </div>
+
+        <StepThrough player={player} rhythm={rhythm} />
       </Collapsible>
 
       <Collapsible
