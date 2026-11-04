@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Player, SOUNDS, playRange, type HandLevel, type SoundId } from "../audio/player";
 import { analyzeRhythm } from "../song/rhythm";
 import type { Hand, Song } from "../song/types";
+import { restoreSession, saveSession } from "../session";
 import { useWakeLock } from "../useWakeLock";
 import { HAND_COLORS } from "./colors";
 import { Coach } from "./Coach";
@@ -55,8 +56,21 @@ export function Practice({ song }: { song: Song }) {
   const [player, setPlayer] = useState<Player | null>(null);
   useEffect(() => {
     const p = new Player(song, loadPrefs());
+    restoreSession(p, song.id);
     setPlayer(p);
-    return () => p.dispose();
+    // Save on every change, and on the way out (playback moves without notifying).
+    const save = () => saveSession(p, song.id);
+    const onHide = () => document.visibilityState === "hidden" && save();
+    const unsubscribe = p.subscribe(save);
+    window.addEventListener("pagehide", save);
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      save();
+      unsubscribe();
+      window.removeEventListener("pagehide", save);
+      document.removeEventListener("visibilitychange", onHide);
+      p.dispose();
+    };
   }, [song]);
   if (!player) return null;
   return <PracticeView song={song} player={player} />;

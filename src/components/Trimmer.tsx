@@ -55,8 +55,11 @@ export function Trimmer({ song, player, loop, clears }: Props) {
   const sections = song.sections ?? [];
   const full: View = { start: 0, end: duration };
 
-  const [view, setViewState] = useState<View>(full);
-  const viewRef = useRef<View>(full);
+  // Start from a zoom restored with the session, if any.
+  const [view, setViewState] = useState<View>(() => player.state.window ?? full);
+  const viewRef = useRef<View>(view);
+  // The loop that zoom was restored with; until the loop changes, leave the zoom be.
+  const restored = useRef(player.state.window && loopKey(player.state.loop));
   const setView = (v: View) => {
     viewRef.current = v;
     setViewState(v);
@@ -281,6 +284,11 @@ export function Trimmer({ song, player, loop, clears }: Props) {
   // Re-frame whenever the loop changes (but not mid-drag; that happens on release).
   useEffect(() => {
     if (drag.current) return;
+    if (restored.current === loopKey(loop)) {
+      manual.current = true; // keep the restored zoom as if picked by hand
+      return;
+    }
+    restored.current = null;
     manual.current = false;
     animateTo(fitView());
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -540,6 +548,10 @@ function selectedRun(sections: Section[], loop: LoopRange, duration: number): [n
 }
 
 /** Zoomed in at all: the visible stretch then plays on repeat. */
+function loopKey(l: LoopRange) {
+  return `${l.enabled}:${l.start}:${l.end}`;
+}
+
 function isZoomed(v: View, duration: number) {
   return v.end - v.start < duration - 0.01;
 }
