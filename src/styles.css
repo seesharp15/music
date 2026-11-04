@@ -309,7 +309,9 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .coach-label { font-size: 0.85rem; font-weight: 600; }
 .coach-sub { font-weight: 400; color: var(--muted); }
 .coach-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.step-through .step-info { flex: 1 1 14em; }
+/* Note names for the paused-on moment; the line keeps its height so the piano doesn't jump. */
+.step-keys { min-height: 1.3em; margin-top: -4px; display: flex; gap: 16px; font-size: 0.85rem; color: var(--text); }
+.step-keys b { font-weight: 700; }
 .step-info { font-size: 0.8rem; color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
 .switch { display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--muted); cursor: pointer; }
 .switch input { accent-color: var(--accent); width: 16px; height: 16px; }
