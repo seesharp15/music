@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
-import type { Player } from "../audio/player";
+import type { HandLevel, Player } from "../audio/player";
+import type { Rhythm } from "../song/rhythm";
 import type { Hand, Song } from "../song/types";
 import { HAND_COLORS } from "./colors";
 import { keyRangeFor, layoutKeyboard, noteName } from "./keyboard";
@@ -9,15 +10,20 @@ const VISIBLE_SECONDS = 3; // song seconds shown above the keyboard
 interface Props {
   song: Song;
   player: Player;
-  muted: Record<Hand, boolean>;
+  levels: Record<Hand, HandLevel>;
+  rhythm: Rhythm;
+  /** Draw a line linking left- and right-hand notes that start together. */
+  syncLines: boolean;
 }
 
+const LEVEL_ALPHA: Record<HandLevel, number> = { on: 1, soft: 0.55, off: 0.2 };
+
 /** Synthesia-style falling notes above a piano keyboard. */
-export function Stage({ song, player, muted }: Props) {
+export function Stage({ song, player, levels, rhythm, syncLines }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const range = useMemo(() => keyRangeFor(song.notes.map((n) => n.pitch)), [song]);
-  const mutedRef = useRef(muted);
-  mutedRef.current = muted;
+  const opts = useRef({ levels, syncLines });
+  opts.current = { levels, syncLines };
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -71,6 +77,37 @@ export function Stage({ song, player, muted }: Props) {
         }
       }
 
+      // Sync lines: both hands strike together here.
+      if (opts.current.syncLines) {
+        for (const m of rhythm.moments) {
+          if (m.time > t + VISIBLE_SECONDS) break;
+          if (m.time < t - 0.05 || m.hands.size < 2) continue;
+          const xs = [...m.pitches.L, ...m.pitches.R]
+            .map((p) => layout.keys.get(p))
+            .filter((k): k is NonNullable<typeof k> => !!k)
+            .map((k) => k.x + k.w / 2);
+          if (xs.length < 2) continue;
+          const y = Math.min(hitY, hitY - (m.time - t) * pps);
+          const x0 = Math.min(...xs);
+          const x1 = Math.max(...xs);
+          const near = 1 - Math.min(1, Math.max(0, (m.time - t) / VISIBLE_SECONDS));
+          ctx.strokeStyle = `rgba(255, 204, 0, ${0.25 + 0.55 * near})`;
+          ctx.lineWidth = 2;
+          ctx.setLineDash([6, 5]);
+          ctx.beginPath();
+          ctx.moveTo(x0, y - 1);
+          ctx.lineTo(x1, y - 1);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = ctx.strokeStyle;
+          for (const x of [x0, x1]) {
+            ctx.beginPath();
+            ctx.arc(x, y - 1, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+
       // Falling notes.
       const active = new Map<number, Hand>();
       for (const n of song.notes) {
@@ -87,7 +124,7 @@ export function Stage({ song, player, muted }: Props) {
         if (h <= 0) continue;
         const c = HAND_COLORS[n.hand];
         const pad = k.black ? 0 : Math.max(1, whiteW * 0.08);
-        ctx.globalAlpha = mutedRef.current[n.hand] ? 0.25 : 1;
+        ctx.globalAlpha = LEVEL_ALPHA[opts.current.levels[n.hand]];
         ctx.fillStyle = k.black ? c.dark : c.fill;
         roundRect(ctx, k.x + pad, top, k.w - pad * 2, Math.max(h, 2), Math.min(6, k.w / 3));
         ctx.fill();
@@ -115,7 +152,7 @@ export function Stage({ song, player, muted }: Props) {
       cancelAnimationFrame(raf);
       ro.disconnect();
     };
-  }, [song, player, range]);
+  }, [song, player, range, rhythm]);
 
   return <canvas ref={canvasRef} className="stage" aria-label="Falling notes piano roll" />;
 }

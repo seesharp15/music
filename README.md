@@ -6,9 +6,16 @@ Synthesia-style piano tutorials for learning specific songs.
 - **Speed control** from 25% to 150%. Tempo changes, pitch doesn't.
 - **Loop any passage** with an iPhone-clipper-style trimmer: drag the yellow
   handles over the song overview, or tap a section to loop it.
-- **Hand practice**: mute the left or right hand.
+- **Skip ±5 s of listening time**: at 50% speed a skip moves 2.5 s of song.
+- **Sounds**: Clear, Soft, Electric piano, Bright, Grand piano (sampled), switchable mid-play.
+- **Hands**: each hand On / Soft / Off, stereo split (left hand left ear), metronome.
+- **Hands together coach**:
+  - sync lines linking notes both hands strike together
+  - a live rhythm map of who plays on each count
+  - step through one moment at a time
+  - a routine that loops a passage as right hand → left hand → together at 60/80/100%
 
-Keyboard: `Space` play/pause · `←/→` skip 2s · `↑/↓` speed · `L` loop · `R` restart.
+Keyboard: `Space` play/pause · `←/→` skip · `↑/↓` speed · `,`/`.` step · `L` loop · `M` metronome · `R` restart.
 
 ## Develop
 
