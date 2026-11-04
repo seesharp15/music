@@ -134,11 +134,6 @@ button { font: inherit; color: inherit; }
   font-size: 0.8rem; color: var(--muted);
 }
 .trimmer-range { text-align: center; display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
-.trimmer-fit {
-  font: inherit; font-family: system-ui, sans-serif; font-size: 0.75rem; color: var(--accent);
-  background: transparent; border: 1px solid rgba(255, 204, 0, 0.4); border-radius: 999px;
-  padding: 2px 8px; cursor: pointer;
-}
 .trimmer { padding: 0 16px; }
 
 /* ---- Controls ---- */
@@ -247,7 +242,16 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   border-radius: 999px; height: 34px; padding: 0 12px; font: inherit; font-size: 0.875rem;
 }
 .icon-btn.skip { width: 52px; height: 52px; }
-.transport .chip { height: 42px; padding: 0 15px; font-size: 1.1rem; gap: 8px; }
+.segmented {
+  align-self: flex-start; display: inline-flex; padding: 3px; gap: 3px;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--surface);
+}
+.segmented button {
+  height: 38px; padding: 0 16px; border: 1px solid transparent; border-radius: 999px;
+  background: none; color: var(--muted); font: inherit; font-size: 1rem; cursor: pointer; white-space: nowrap;
+}
+.segmented button.is-on { background: var(--surface-2); border-color: #4b5263; color: var(--text); }
+.segmented button.loop-on { border-color: var(--accent); color: var(--accent); }
 
 /* ---- Rhythm map ---- */
 .rhythm { display: flex; gap: 10px; align-items: stretch; }

@@ -68,7 +68,6 @@ export function Trimmer({ song, player, loop, clears }: Props) {
   const pinch = useRef<{ dist: number; t: number; span: number } | null>(null);
   const manual = useRef(false); // the view was zoomed by hand
   const mapGrab = useRef<number | null>(null); // seconds from the view start to the finger
-  const [showAll, setShowAll] = useState(false);
   const tween = useRef<{ from: View; to: View; t0: number } | null>(null);
 
   // ---- song overview -------------------------------------------------------
@@ -235,7 +234,6 @@ export function Trimmer({ song, player, loop, clears }: Props) {
   useEffect(() => {
     if (!clears) return;
     manual.current = false;
-    setShowAll(false);
     animateTo(full);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clears]);
@@ -246,7 +244,6 @@ export function Trimmer({ song, player, loop, clears }: Props) {
     const start = clamp(t - frac * span, 0, duration - span);
     tween.current = null;
     manual.current = span < duration - 0.001;
-    setShowAll(!manual.current && player.state.loop.enabled); // zoomed all the way out: offer "Back to loop"
     setView({ start, end: start + span });
   };
 
@@ -285,7 +282,6 @@ export function Trimmer({ song, player, loop, clears }: Props) {
   useEffect(() => {
     if (drag.current) return;
     manual.current = false;
-    setShowAll(false);
     animateTo(fitView());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loop.enabled, loop.start, loop.end, duration]);
@@ -358,7 +354,6 @@ export function Trimmer({ song, player, loop, clears }: Props) {
       const l = player.state.loop;
       if (!manual.current || l.start < v.start || l.end > v.end) {
         manual.current = false;
-        setShowAll(false);
         animateTo(fitView());
       }
     }
@@ -472,18 +467,6 @@ export function Trimmer({ song, player, loop, clears }: Props) {
             : zoomed
               ? `Looping what's visible${zoomLabel}`
               : `Drag the yellow handles to loop a passage · ${coarsePointer() ? "pinch" : "scroll"} to zoom`}
-          {(zoomed || (loop.enabled && showAll)) && (
-            <button
-              className="trimmer-fit"
-              onClick={() => {
-                manual.current = false;
-                setShowAll(zoomed && loop.enabled);
-                animateTo(zoomed ? full : fitView());
-              }}
-            >
-              {zoomed ? "Whole song" : "Back to loop"}
-            </button>
-          )}
         </span>
         <span className="mono">{formatTime(duration)}</span>
       </div>

@@ -64,6 +64,35 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
     setClears((n) => n + 1);
   };
 
+  /** Play the whole song: loop off and zoomed out, keeping the loop range for next time. */
+  const playWholeSong = () => {
+    player.setLoop({ enabled: false });
+    setClears((n) => n + 1);
+  };
+
+  /** Loop the remembered range, or with none, the section (or 4 bars) under the playhead. */
+  const startLoop = () => {
+    const l = player.state.loop;
+    const d = player.duration;
+    if (l.end - l.start < d - 0.5) {
+      player.setLoop({ enabled: true });
+      return;
+    }
+    const t = player.currentTime();
+    const s = song.sections?.find((s) => t >= s.start && t < s.end);
+    if (s) {
+      player.setLoop({ enabled: true, start: s.start, end: s.end });
+    } else {
+      const bar = rhythm.beat * rhythm.perBar;
+      const start = Math.floor(t / bar) * bar;
+      player.setLoop({ enabled: true, start, end: Math.min(start + 4 * bar, d) });
+    }
+  };
+
+  /** Anything repeating (a loop, or a zoomed-in stretch) counts as looping. */
+  const toggleLoop = () =>
+    player.state.loop.enabled || player.state.window ? playWholeSong() : startLoop();
+
   useEffect(() => savePrefs({ sound, stereo, syncLines }), [sound, stereo, syncLines]);
 
   // Keyboard shortcuts.
@@ -74,7 +103,7 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
         e.preventDefault();
         player.toggle();
       } else if (e.key === "l" || e.key === "L") {
-        player.setLoop({ enabled: !player.state.loop.enabled });
+        toggleLoop();
       } else if (e.key === "ArrowLeft") {
         player.skip(-1);
       } else if (e.key === "ArrowRight") {
@@ -160,6 +189,25 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
         title="Controls"
         summary={`${repeating ? `Looping ${formatTime(repeating.start)} – ${formatTime(repeating.end)}` : "Whole song"} · ${Math.round(rate * 100)}%`}
       >
+        <div className="segmented" role="group" aria-label="What plays">
+          <button
+            className={!repeating ? "is-on" : ""}
+            aria-pressed={!repeating}
+            onClick={() => repeating && playWholeSong()}
+            title="Play the whole song (L)"
+          >
+            Whole song
+          </button>
+          <button
+            className={repeating ? "is-on loop-on" : ""}
+            aria-pressed={!!repeating}
+            onClick={() => !repeating && startLoop()}
+            title="Loop a passage (L)"
+          >
+            ⟲ Loop
+          </button>
+        </div>
+
         <Trimmer song={song} player={player} loop={loop} clears={clears} />
 
         <div className="controls">
@@ -200,14 +248,6 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
               title={`Forward 5 s of listening (${skipSongSeconds} s of song at ${Math.round(rate * 100)}%) (→)`}
             >
               <SkipIcon dir={1} />
-            </button>
-            <button
-              className={`chip ${loop.enabled ? "is-on loop-on" : ""}`}
-              onClick={() => player.setLoop({ enabled: !loop.enabled })}
-              title="Toggle loop (L)"
-              aria-pressed={loop.enabled}
-            >
-              ⟲ Loop
             </button>
           </div>
 
