@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { HandLevel, Player } from "../audio/player";
 import type { Rhythm } from "../song/rhythm";
 import type { Hand, Song } from "../song/types";
@@ -23,6 +23,13 @@ const GROW_TAU = 0.18; // s: widening to take in a new note
 const SHRINK_TAU = 0.6; // s: a batched narrowing
 const MOVE_TAU = 0.35; // s: a batched move over
 const SWITCH_TAU = 0.22; // s: changing mode, or All/Song
+
+const TAP_SLOP = 8; // px a tap may wander and still count as a tap
+
+/** Keyboard height for a waterfall `height` px tall. */
+const keyboardHeight = (height: number) => Math.round(Math.min(150, Math.max(70, height * 0.22)));
+/** Pixels of waterfall per song second. */
+const pixelsPerSecond = (height: number) => (height - keyboardHeight(height)) / VISIBLE_SECONDS;
 
 interface Props {
   song: Song;
@@ -139,9 +146,9 @@ export function Stage({ song, player, levels, rhythm, syncLines, keys }: Props) 
       const dt = Math.min(0.1, (now - lastFrame) / 1000);
       lastFrame = now;
       const t = player.currentTime();
-      const kbH = Math.round(Math.min(150, Math.max(70, height * 0.22)));
+      const kbH = keyboardHeight(height);
       const hitY = height - kbH;
-      const pps = hitY / VISIBLE_SECONDS;
+      const pps = pixelsPerSecond(height);
       const layout = frameKeys(t, dt);
       const whiteW = layout.whiteW;
 
@@ -242,7 +249,97 @@ export function Stage({ song, player, levels, rhythm, syncLines, keys }: Props) 
     };
   }, [song, player, songSpan, rhythm]);
 
-  return <canvas ref={canvasRef} className="stage" aria-label="Falling notes piano roll" />;
+  // Scrolling the notes. A tap turns it on, so a swipe over the waterfall still
+  // scrolls the page; a tap (here or anywhere else) or Esc turns it off.
+  const [scrolling, setScrolling] = useState(false);
+  const [wheelHint, setWheelHint] = useState(false);
+  useEffect(() => {
+    const canvas = canvasRef.current!;
+    const wrap = canvas.parentElement!;
+    // Moving the notes down brings later music into view, like dragging a page.
+    const scrollBy = (dy: number) => {
+      if (player.state.playing) player.pause();
+      const r = player.range();
+      const t = player.currentTime() + dy / pixelsPerSecond(canvas.clientHeight);
+      player.seek(Math.min(Math.max(t, r.start), r.end - 0.05));
+    };
+
+    let down: { id: number; x: number; y: number; lastY: number; moved: boolean } | null = null;
+    const onDown = (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      down = { id: e.pointerId, x: e.clientX, y: e.clientY, lastY: e.clientY, moved: false };
+      if (scrolling) canvas.setPointerCapture(e.pointerId);
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!down || e.pointerId !== down.id) return;
+      if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > TAP_SLOP) down.moved = true;
+      if (!scrolling || !down.moved) return;
+      scrollBy(e.clientY - down.lastY);
+      down.lastY = e.clientY;
+    };
+    const onUp = (e: PointerEvent) => {
+      if (!down || e.pointerId !== down.id) return;
+      if (!down.moved) setScrolling(!scrolling);
+      down = null;
+    };
+    const onCancel = () => (down = null);
+
+    let hintTimer = 0;
+    const onWheel = (e: WheelEvent) => {
+      if (!scrolling) {
+        // Let the page scroll, but say how to scroll the notes instead.
+        setWheelHint(true);
+        clearTimeout(hintTimer);
+        hintTimer = window.setTimeout(() => setWheelHint(false), 1500);
+        return;
+      }
+      e.preventDefault();
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? canvas.clientHeight : 1;
+      scrollBy(-e.deltaY * unit);
+    };
+    const onOutside = (e: PointerEvent) => {
+      if (!wrap.contains(e.target as Node)) setScrolling(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setScrolling(false);
+
+    canvas.addEventListener("pointerdown", onDown);
+    canvas.addEventListener("pointermove", onMove);
+    canvas.addEventListener("pointerup", onUp);
+    canvas.addEventListener("pointercancel", onCancel);
+    canvas.addEventListener("wheel", onWheel, { passive: !scrolling });
+    if (scrolling) {
+      document.addEventListener("pointerdown", onOutside);
+      window.addEventListener("keydown", onKey);
+    }
+    return () => {
+      clearTimeout(hintTimer);
+      canvas.removeEventListener("pointerdown", onDown);
+      canvas.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("pointerup", onUp);
+      canvas.removeEventListener("pointercancel", onCancel);
+      canvas.removeEventListener("wheel", onWheel);
+      document.removeEventListener("pointerdown", onOutside);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [player, scrolling]);
+  useEffect(() => setWheelHint(false), [scrolling]);
+
+  return (
+    <>
+      <canvas
+        ref={canvasRef}
+        className={`stage${scrolling ? " is-scrolling" : ""}`}
+        aria-label="Falling notes piano roll"
+        title={scrolling ? undefined : "Tap to scroll through the notes"}
+      />
+      {scrolling && (
+        <div className="stage-scroll" aria-live="polite">
+          Drag to scroll · tap to finish
+        </div>
+      )}
+      {wheelHint && <div className="stage-scroll is-hint">Click the notes to scroll them</div>}
+    </>
+  );
 }
 
 function drawKeyboard(
