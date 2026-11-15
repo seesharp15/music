@@ -4,6 +4,8 @@ import { analyzeRhythm } from "../song/rhythm";
 import type { Hand, Song } from "../song/types";
 import { restoreSession, saveSession } from "../session";
 import { useWakeLock } from "../useWakeLock";
+import { exposePlayer } from "../app/testHooks";
+import { faster, posToSpeed, round2, slower, snapRate, SPEED_MARKS, SPEED_STEPS, speedToPos } from "./speed";
 import { HAND_COLORS } from "./colors";
 import { Coach } from "./Coach";
 import { Collapsible } from "./Collapsible";
@@ -12,15 +14,6 @@ import { Stage, type KeyMode } from "./Stage";
 import { StepKeys, StepThrough } from "./StepThrough";
 import { Trimmer, formatTime } from "./Trimmer";
 
-const SPEED_MIN = 0.05;
-const SPEED_MAX = 2;
-const SPEED_MARKS = [0.1, 0.5, 0.75, 1];
-const SPEED_SNAP = 0.07; // within ~7% of a mark, the slider settles on it
-const SPEED_STEPS = 1000; // slider resolution
-const SPEED_LOG_SPAN = Math.log(SPEED_MAX / SPEED_MIN);
-/** Slider position (0–1) for a speed. Logarithmic, so slow speeds get room and 100–200% stays short. */
-const speedToPos = (r: number) => Math.log(r / SPEED_MIN) / SPEED_LOG_SPAN;
-const posToSpeed = (p: number) => SPEED_MIN * Math.exp(p * SPEED_LOG_SPAN);
 const NEXT_LEVEL: Record<HandLevel, HandLevel> = { on: "soft", soft: "off", off: "on" };
 const LEVEL_LABEL: Record<HandLevel, string> = { on: "On", soft: "Soft", off: "Off" };
 
@@ -58,6 +51,7 @@ export function Practice({ song }: { song: Song }) {
     const p = new Player(song, loadPrefs());
     restoreSession(p, song.id);
     setPlayer(p);
+    exposePlayer(p);
     // Save on every change, and on the way out (playback moves without notifying).
     const save = () => saveSession(p, song.id);
     const onHide = () => document.visibilityState === "hidden" && save();
@@ -69,6 +63,7 @@ export function Practice({ song }: { song: Song }) {
       unsubscribe();
       window.removeEventListener("pagehide", save);
       document.removeEventListener("visibilitychange", onHide);
+      exposePlayer(null);
       p.dispose();
     };
   }, [song]);
@@ -147,11 +142,9 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
       } else if (e.key === "ArrowRight") {
         player.skip(1);
       } else if (e.key === "ArrowDown" || e.key === "-") {
-        const r = player.state.rate;
-        player.setRate(Math.max(SPEED_MIN, round2(r - (r > 0.25 + 1e-9 ? 0.05 : 0.01))));
+        player.setRate(slower(player.state.rate));
       } else if (e.key === "ArrowUp" || e.key === "+" || e.key === "=") {
-        const r = player.state.rate;
-        player.setRate(Math.min(SPEED_MAX, round2(r + (r >= 0.25 - 1e-9 ? 0.05 : 0.01))));
+        player.setRate(faster(player.state.rate));
       } else if (e.key === "Home" || e.key === "r") {
         player.restart();
       } else if (e.key === "Escape") {
@@ -410,8 +403,3 @@ function SkipIcon({ dir }: { dir: 1 | -1 }) {
     </svg>
   );
 }
-
-const round2 = (x: number) => Math.round(x * 100) / 100;
-
-/** Settle on 50/75/100% when close, but leave every other value reachable. */
-const snapRate = (r: number) => SPEED_MARKS.find((m) => Math.abs(Math.log(r / m)) <= SPEED_SNAP) ?? round2(r);
