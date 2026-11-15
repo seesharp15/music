@@ -134,7 +134,7 @@ The decisions that hold this together:
 | **A pure zone** of musical logic with no browser dependencies, type-checked separately. | The same code runs in the browser, on the server and in tests; it is where most of the difficulty is, so it is where the tests are. |
 | **Local suggestions first, language model second, one tray.** | Instant and offline by default; the model adds range and takes direction in words. |
 | **Language models place notes on an explicit grid and never do duration arithmetic**; everything they return is validated and repaired or dropped. | Their measured weakness is exactly bar arithmetic. |
-| **Python does inference only; all musical post-processing is TypeScript.** | One implementation of quantizing, key finding, hand splitting and arranging, shared by import, humming and the editor. |
+| **Python does inference only; all musical post-processing is TypeScript, run in the browser.** | One implementation of quantizing, key finding, hand splitting and arranging, shared by import, humming and the editor; and an import can be re-arranged later without another server job. |
 | **Clean-licence components by default; every model labelled with a licence class.** | Most strong audio models have non-commercial or unclear weights; this keeps the question answerable later. |
 | **In-browser models run as single-threaded WebAssembly in a Worker; nothing depends on WebGPU.** | It is what works on an iPhone today. |
 | **Local-first storage; the app is installable.** | No accounts to build. Installing matters because Safari may evict a site's stored data after a week unused. |
@@ -158,9 +158,9 @@ Every pick, its licence, its fallback and how far it was verified is in [researc
 
 | # | Stage | Delivers | Needs a server | Size | Packages |
 | --- | --- | --- | --- | --- | --- |
-| 0 | [Foundations](00-foundations.md) | Tests, CI, router, flags, shared types as code | no | small | 5 |
+| 0 | [Foundations](00-foundations.md) | Tests, CI, an audio test harness, router, flags, shared types as code | no | small | 6 |
 | 1 | [Library, hand volume, sustain](01-library-and-practice.md) | The home page; volume and mute per hand; the sustain toggle | no | medium | 5 |
-| 2 | [Music core](02-music-core.md) | Musical time, theory kernel, project model with undo, compile, multi-track audio engine, storage | no | large | 6 |
+| 2 | [Music core](02-music-core.md) | Musical time, theory kernel, project model with undo, compile, multi-track audio engine, storage | no | large | 7 |
 | 3 | [Studio by hand](03-studio-manual.md) | The builder: step, live and drawn entry; chord track; sections; tracks; "Practice it" | no | large | 9 |
 | 4 | [Drum pads and groove](04-drum-pads.md) | Pads, loop recording, step grid, tap the beat, starter grooves, tap a rhythm | no | medium | 7 |
 | 5 | [Assist I: on the device](05-assist-local.md) | Key hints; the Ideas tray; melody, chord, bass and accompaniment options; evolve; coach; authorship view | no | large | 9 |
@@ -182,7 +182,10 @@ Sizes are relative to each other, not estimates of time.
 ```
 
 Stage 1 and Stage 2 can proceed together after Stage 0 (Stage 2's audio work waits for Stage 1's mixer).
-Stages 4, 5 and 7 are independent of each other once Stage 3 exists.
+Stages 4, 5 and 7 are independent of each other once Stage 3 exists: what they share — tempo estimation,
+the latency reader, rhythm slots — is deliberately built in Stages 2 and 3. Where one uses another's
+feature (Hum's "tidy versions" uses Stage 5's tray; drum suggestions use Stage 4's grooves), that part is
+hidden until the other stage is there.
 
 **Milestones** — each is something to sit down and try:
 
@@ -210,17 +213,17 @@ audio path, and runs each milestone's run-through. The rest work in lanes that m
 | Lane | Works on | Typical packages |
 | --- | --- | --- |
 | Shell and Library | `src/app`, `src/library`, exports and imports | S0.3, S1.1–S1.3, S3.1, S3.8, S3.9, Stage 9 |
-| Audio | `src/audio`, live input, microphone | S1.4–S1.5, S2.5, S3.4, S4.1–S4.3, S7.1–S7.2 |
+| Audio | `src/audio`, live input, microphone | S0.6, S1.4–S1.5, S2.5, S2.7, S3.4, S4.1–S4.3, S7.1–S7.2 |
 | Music logic (pure zone) | `src/music`, `src/project`, `src/assist/core`, `src/capture/segment.ts`, `src/import/build` | S2.1–S2.4, S5.1, S5.3–S5.5, S7.3, S8.5–S8.6 |
 | Editor | `src/studio`, `src/assist/ui`, review mode | S3.2–S3.7, S4.4, S5.2, S5.6–S5.9, S8.8 |
 | Server and ML | `server/`, `ml/` | S6.1–S6.3, S6.6, S8.1–S8.4 |
 
 In waves:
 
-1. **Stage 0** — one agent for S0.1, then three in parallel.
+1. **Stage 0** — one agent for S0.1, then four in parallel.
 2. **Stage 1** (two parallel tracks) alongside the pure parts of **Stage 2** (S2.1, S2.2, S2.6). The server
    scaffold (S6.1) can also start here.
-3. The rest of **Stage 2**, then **Stage 3** — S3.1 and S3.2 first, then six packages in parallel.
+3. The rest of **Stage 2**, then **Stage 3** — S3.1 and S3.2 first, then seven packages in parallel.
 4. **Stages 4, 5 and 7** in parallel, plus Stage 8's spike and worker.
 5. **Stages 6 and 8**.
 6. **Stage 9** packages as wanted.
@@ -250,18 +253,18 @@ Each has a default the plan assumes unless told otherwise.
 | --- | --- | --- | --- |
 | 1 | **Is this project commercial, or might it become so?** | Personal, non-commercial | Which audio models Stage 8 may use. Several of the best have non-commercial or unclear weights. |
 | 2 | **Is running a server and paying per use acceptable?** Stage 6 calls Claude (estimated 5–10 US cents a request); Stage 8 rents a GPU by the second (estimated a few cents an import). Both estimates are to be measured. | Yes, from Stage 6 on; Stages 0–5 and 7 cost nothing to run | Whether Stages 6 and 8 are built. |
-| 3 | **YouTube links.** Fetching audio is against YouTube's terms and is technically fragile. | Not built until asked; file upload and "record this tab" instead | S8.10 only. |
+| 3 | **YouTube links.** You asked for these. Fetching the audio from a server is against YouTube's terms and technically fragile (Stage 8 explains). | "Record this tab" is built with the import screen; paste-a-link is built last, once you confirm you still want it | S8.10 only. |
 | 4 | **"L/R sound toggle"** — taken to mean the Left / Right chips that cycle On / Soft / Off, not the Stereo split chip. | The hand chips | The UI in S1.4. |
 | 5 | **Editor orientation** — a vertical waterfall like Practice, not a sideways piano roll. | Vertical | Stage 3's whole look; a sideways view is a later option. |
 | 6 | **Which Claude model.** | `claude-opus-5-5`, set in configuration | Cost, speed and quality of the co-writer; a smaller model is a trade you may choose. |
 | 7 | **Who may use the paid features.** | A shared access code, no accounts | S6.1. |
 | 8 | **Where songs live.** | On the device, with export and backup; cloud accounts in the backlog | Whether a database and sign-in get built. |
-| 9 | **Your time as a tester.** The plan needs from you: about twelve hummed recordings, five piano and five full-song test recordings you may use, and two listening sessions on the assistant's output. | You can provide these | Stages 5–8 cannot be called done without them. |
+| 9 | **Your time as a tester.** The plan needs from you: about twelve hummed recordings, five piano and five full-song test recordings you may use, two listening sessions on the assistant's output, and a try on a real phone at each milestone. | You can provide these | Stages 5–8 cannot be called done without them. |
 | 10 | Genre and difficulty for the two existing songs. | Rewrite the Stars: Film & TV, 3. Divenire: Neoclassical, 4 | The first Library cards. |
 
 ## 10. Things worth knowing before you say yes
 
-- **It is a lot.** Roughly seventy work packages, and several times the size of the current codebase.
+- **It is a lot.** About seventy-five work packages, and several times the size of the current codebase.
   Each stage is useful on its own, so it can stop after any milestone and still have been worth doing.
 - **Editing music on a phone is the hardest design problem here**, harder than any of the machine
   learning. Stage 3 budgets for iteration with you.

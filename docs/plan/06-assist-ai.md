@@ -100,9 +100,11 @@ for harmony: the flavours of Stage 5 — and asks, in one call, for one option p
 covered by the local options on screen are skipped. The author's words, the brief and the preference
 summary apply to all slots.
 
-### 6.4 What the model sees — `src/assist/core/prompt.ts` (pure)
+### 6.4 What the model sees — `src/assist/core/prompt.ts`, `grid.ts` (pure)
 
-Built by the client, trimmed to what the request needs:
+The client sends an `AssistOptionsBody` (contracts §9): the request, with the project trimmed to the
+section in question and eight bars either side, plus the options already on screen. The **server** builds
+the prompt from it with these pure-zone modules. It contains:
 
 - the song: key, meter, tempo, section names and lengths; the brief;
 - the chord track for the section;
@@ -115,7 +117,7 @@ Built by the client, trimmed to what the request needs:
 
 Audio is never sent. A typical request is a few thousand tokens.
 
-### 6.5 What comes back, and what happens to it — `src/assist/core/validate.ts` (pure)
+### 6.5 What comes back, and what happens to it — `src/assist/core/validate.ts`, `repair.ts` (pure)
 
 Per kind, the schema asks for:
 
@@ -126,7 +128,8 @@ Per kind, the schema asks for:
 - **critique:** `{ observations: { dimension, text, try?: { kind, controls, text } }[] }`;
 - **chat:** `{ say, options?, question?: { prompt, choices: { label, controls }[] }, briefPatch? }`.
 
-Then, for every option, in this order:
+Then, for every option, in this order (steps 1–3 are Stage 5's `validateOption`, run on the server;
+repair is new here):
 
 1. **Structure:** every event starts inside its bar, has a positive length, parses as a pitch; every
    chord symbol parses.
@@ -134,7 +137,8 @@ Then, for every option, in this order:
 3. **Music:** in range; in the key unless the request allows otherwise; no overlaps within a voice.
 4. **Repair** what is small: trim an overlap, shift a phrase by an octave into range, clip a note that
    runs past the window. An option needing repair on more than a fifth of its notes is dropped.
-5. **Deduplicate** against the other options and the local ones on screen.
+5. **Deduplicate** against the other options and against the ones already on screen (`shown` in the
+   request body).
 6. **Build the `Option`:** ops, the model's label and rationale (length-limited), `source: "ai"`,
    traits measured locally.
 
@@ -153,8 +157,9 @@ it just returns fewer options.
 
 ### 6.7 The Co-writer panel
 
-- A conversation per project, kept on the device (`kv`, last thirty turns); the server is stateless and
-  receives the recent turns plus the song context each time.
+- A conversation per project, kept on the device (`chat:<projectId>`, last thirty turns); the server is
+  stateless and receives the recent turns plus the song context each time (`ChatBody`). The reply streams
+  over the `fetch` response body.
 - **Replies are short** — at most three sentences — and usually carry options. The co-writer talks
   about the song in the terms the app uses, glossing theory words in passing.
 - **Asking instead of assuming.** When a direction could go several ways, the reply is a question with
@@ -194,8 +199,8 @@ Two investigations, each ending in a go or no-go note. Neither blocks this stage
 | Id | Deliverable | Owns | Needs |
 | --- | --- | --- | --- |
 | S6.1 | Server: routes, access code, limits, logging, deploy config, dev proxy, Settings screen for the code | `server/`, `render.yaml`, `src/app/settings/` | S0 |
-| S6.2 | Prompt builder and system prompt; Claude client wrapper with schemas, caching, stop-reason handling | `src/assist/core/prompt.ts`, `server/claude.ts`, `server/prompts/` | S5.1, S6.1 |
-| S6.3 | Validation, repair, dedupe, option building; the one repair retry | `src/assist/core/validate.ts`, `server/assist.ts` | S5.3–S5.5 |
+| S6.2 | `Project ⇄ GridBar` conversion; prompt builder and system prompt; Claude client wrapper with schemas, caching, stop-reason handling | `src/assist/core/grid.ts`, `prompt.ts`, `server/claude.ts`, `server/prompts/` | S5.1, S6.1 |
+| S6.3 | Scope checks and repair for model output on top of Stage 5's `validateOption`; dedupe; option building; the one repair retry | `src/assist/core/repair.ts`, `server/assist.ts` | S5.3–S5.6 |
 | S6.4 | `ai` provider and tray integration: late arrival, marking, abort, failure states, text box on requests, `melody.fromText` | `src/assist/providers/ai.ts`, `src/assist/ui/` | S5.6, S6.3 |
 | S6.5 | Critique route and "Ask about this phrase"; Co-writer panel with questions, examples and brief proposals; the brief editor | `server/critique.ts`, `server/chat.ts`, `src/assist/ui/Cowriter.tsx`, `Brief.tsx` | S6.4 |
 | S6.6 | Evaluation set, graders, script, first report, chosen effort defaults | `server/eval/` | S6.3 |

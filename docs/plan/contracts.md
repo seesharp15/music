@@ -64,7 +64,7 @@ export interface BeatMap {
   beatsPerBar: number;
 }
 /** Constant tempo when the song has only `bpm`; piecewise when it has `tempoMap`; null when it has neither. */
-export function beatMapOf(song: Song): BeatMap | null;
+export function beatMapOf(song: Song): BeatMap | null;        // src/song/beatmap.ts
 ```
 
 ## 2. Song — the playback format (`piano-song/v2`)
@@ -180,13 +180,16 @@ export interface NoteTrack {
   volume: number;             // 0..1
   muted: boolean;
   locked: boolean;            // assist never proposes edits to a locked track
+  /** Share of each note's `offset` applied at compile: 1 = as played, 0 = exactly on the grid. */
+  feel: number;
   notes: PNote[];
 }
 
 export interface DrumPattern {
   id: string;
   name: string;
-  steps: 16 | 32;             // per bar
+  /** Columns per bar, any even division of it: 16 or 32 in 4/4; 12 in 3/4, in 6/8, or for a triplet feel. */
+  stepsPerBar: number;
   bars: 1 | 2 | 4;
   /** Per pad, one velocity per step (0 = silent). */
   lanes: Partial<Record<DrumPadId, number[]>>;
@@ -200,6 +203,8 @@ export interface DrumTrack {
   volume: number;
   muted: boolean;
   locked: boolean;
+  /** As on NoteTrack. The pads' Tighten slider is 1 − feel. */
+  feel: number;
   patterns: DrumPattern[];
   /** Patterns placed on the timeline. */
   clips: { id: number; patternId: string; tick: number; repeats: number }[];
@@ -221,7 +226,11 @@ export interface ChordEvent {
   conf?: number;
 }
 
-export interface PSection { id: string; name: string; tick: number; dur: number; color?: string }
+export interface PSection {
+  id: string; name: string; tick: number; dur: number; color?: string;
+  /** Review mode (Stage 8): the author has checked this section against the recording. */
+  checked?: boolean;
+}
 
 /** Timing feel extracted from a drum performance and applied when other tracks are quantized. */
 export interface Groove {
@@ -255,6 +264,8 @@ export interface Project {
   /** Share of each beat pair taken by the first note: 0.5 straight, 0.667 triplet swing. */
   swing: { amount: number; unit: 8 | 16 };
   groove?: Groove;
+  /** Widest stretch, in semitones, that a writer may ask of one hand. Default 14 (a ninth). */
+  handSpan: number;
   sections: PSection[];
   chords: ChordEvent[];
   tracks: Track[];
@@ -263,19 +274,29 @@ export interface Project {
   ideas: Idea[];
   /** A tapped or hummed rhythm waiting for pitches: drawn as outlines, never compiled. */
   pending?: { trackId: string; slots: { tick: number; dur: number; vel: number }[] };
-  assist: { profile: PreferenceProfile; history: SuggestionRecord[] };
   /** Present on imported projects. */
   source?: {
     kind: "audio" | "youtube" | "midi" | "song";
     ref?: string;             // URL, or id of the reference audio blob
-    engines?: Record<string, string>;   // model name → version, for reproducibility
+    engines?: Record<string, string>;   // model name → version and licence class
     importedAt: string;
+    /** The bar grid was estimated, not known: a free-time song, or a quick import. */
+    gridGuessed?: boolean;
+    /** How full an arrangement was asked for. */
+    level?: "lead" | "easy" | "intermediate" | "full";
+    /** Id of the stored `AnalyzeResult`, kept so the level can be changed without another job. */
+    analysisBlobId?: string;
+    warnings?: { tick?: number; text: string }[];
   };
 }
 ```
 
 Every stored project passes `ProjectSchema` (zod) on load; a failing project opens read-only with a
 repair prompt instead of crashing. A `migrate(raw)` function upgrades older versions.
+
+The assistant's records — what it offered, what the author took, what they seem to prefer — are
+deliberately **not** in the project. They are stored beside it (§10), so asking for ideas, dismissing
+them or answering a listening question never changes the song.
 
 ## 4. Compile and decompile
 
@@ -311,17 +332,21 @@ export type EditOp =
   | { op: "setChords"; range: { start: number; end: number }; chords: Omit<ChordEvent, "id">[] }
   | { op: "addHits"; trackId: string; hits: Omit<DrumTrack["hits"][number], "id">[] }
   | { op: "removeHits"; trackId: string; ids: number[] }
-  | { op: "putPattern"; trackId: string; pattern: DrumPattern }
+  | { op: "patchHits"; trackId: string; ids: number[]; patch: Partial<Omit<DrumTrack["hits"][number], "id">> }
+  | { op: "putPattern"; trackId: string; pattern: DrumPattern }       // adds, or replaces the pattern with that id
+  | { op: "removePattern"; trackId: string; patternId: string }       // and its clips
   | { op: "placeClip"; trackId: string; patternId: string; tick: number; repeats: number }
+  | { op: "removeClip"; trackId: string; id: number }
   | { op: "addTrack"; track: Track; index?: number }
   | { op: "removeTrack"; trackId: string }
-  | { op: "patchTrack"; trackId: string; patch: Partial<Pick<NoteTrack, "name" | "role" | "hand" | "sound" | "volume" | "muted" | "locked">> }
+  | { op: "patchTrack"; trackId: string; patch: Partial<Pick<NoteTrack, "name" | "role" | "hand" | "sound" | "volume" | "muted" | "locked" | "feel"> & Pick<DrumTrack, "kit">> }
   | { op: "setSections"; sections: PSection[] }
-  /** Range operations move everything on every track, plus chords, clips and sections. */
-  | { op: "insertTime"; tick: number; dur: number }
-  | { op: "deleteTime"; tick: number; dur: number }
+  /** Range operations act on every track, plus chords, clips and sections. */
+  | { op: "insertTime"; tick: number; dur: number }      // opens a gap; later material moves later
+  | { op: "deleteTime"; tick: number; dur: number }      // removes the range; later material moves earlier
+  /** Opens a gap as long as the range at `to`, then fills it with a copy. Never overwrites. */
   | { op: "copyRange"; from: { start: number; end: number }; to: number }
-  | { op: "patchSong"; patch: Partial<Pick<Project, "title" | "author" | "tempo" | "meter" | "key" | "swing" | "groove" | "lengthTicks" | "brief">> }
+  | { op: "patchSong"; patch: Partial<Pick<Project, "title" | "author" | "tempo" | "meter" | "key" | "swing" | "groove" | "handSpan" | "lengthTicks" | "brief">> }
   | { op: "putIdea"; idea: Idea }
   | { op: "removeIdea"; id: string }
   | { op: "setPending"; pending: Project["pending"] };
@@ -336,7 +361,19 @@ export interface ProjectStore {
   /** A copy with `ops` applied, without touching the store: how options are auditioned. */
   preview(ops: EditOp[]): Project;
 }
+
+export class EditError extends Error {
+  code: "unknownId" | "lockedTrack" | "outOfRange" | "overlap" | "badValue";
+  /** Index in the `ops` array of the op that was refused. */
+  opIndex: number;
+}
 ```
+
+`apply` is all-or-nothing. If any op is invalid — an id that does not exist, a locked track, a pitch
+outside 21–108, a length of zero, one chord overlapping another — it throws an `EditError` and the project
+is unchanged. What is not an error is put right silently: notes and chords are kept sorted by tick, new
+ids come from `seq`, `lengthTicks` grows to fit, and `edited` is set when the author changes a note that
+was not their own.
 
 An option from the assistant, a hummed take and a pasted clipboard are all just `EditOp[]`. That single
 shape is what makes preview, accept, partial accept and undo work the same way everywhere.
@@ -344,6 +381,7 @@ shape is what makes preview, accept, partial accept and undo work the same way e
 ## 6. Audio engine and player
 
 ```ts
+/** Declared in src/song/types.ts so the pure zone can use it; src/audio/player.ts re-exports it. */
 export type SoundId = "clear" | "soft" | "epiano" | "bright" | "piano";   // Stage 2 may add more
 
 export interface HandMix { volume: number; muted: boolean }               // volume 0..1 on the slider
@@ -362,6 +400,7 @@ export interface AudioEngine {
   click(accent: boolean, when: number): void;
   setHandMix(hand: Hand, mix: HandMix): void;
   setTrackMix(trackId: string, mix: HandMix): void;
+  setDrumMix(mix: HandMix): void;
   setStereoSplit(on: boolean): void;
   setSustain(down: boolean): void;
   setSound(sound: SoundId): void;
@@ -373,8 +412,25 @@ export interface Channel { hand: Hand; track?: string; sound?: SoundId }
 ```
 
 `PlayerState` changes (Stage 1): `levels: Record<Hand, HandLevel>` becomes `mix: Record<Hand, HandMix>`,
-and `sustain: boolean` is added. Stage 2 adds `trackMix`, `setSong(song, { keepPosition })` for hot-swapping
-the compiled song while editing, and scheduling of `drums` and `tracks`.
+and `sustain: boolean` is added. Stage 2 adds `trackMix`, `drumMix`, `setSong(song, { keepPosition })` for
+hot-swapping the compiled song while editing, and scheduling of `drums` and `tracks`.
+
+`inputLatencyMs()` in `src/audio/latency.ts` returns the calibrated input latency stored under
+`piano-tutor:latency`, or 0 when this device has not been calibrated. Every recording path — live notes,
+pads, humming — subtracts it. Stage 2 provides the reader; Stage 4 adds the calibration screen that writes
+it.
+
+**The sink.** The player never calls Tone directly to make a sound; it calls a `Sink` — in Stage 0 a thin
+wrapper round today's instruments, from Stage 2 the `AudioEngine`. Tests substitute a recording sink to
+check *when* things are scheduled, and an offline engine to check *what* they sound like.
+
+```ts
+export interface Sink {
+  play(pitch: number, duration: number, velocity: number, ch: Channel, when: number): void;
+  click(accent: boolean, when: number): void;
+  releaseAll(): void;
+}
+```
 
 Slider-to-gain law, used everywhere a volume slider exists: `gain = muted ? 0 : volume²`.
 
@@ -404,6 +460,10 @@ export interface Controls {
   harmonicRhythm?: 1 | 2 | 4;
   style?: string;                   // bass or accompaniment style id
   text?: string;                    // the author's words, for *.fromText and chat
+  /** A line drawn by the author, for melody.fromContour: one height per beat, 0 (low) to 1 (high). */
+  shape?: number[];
+  /** For evolve: how far children may stray from the parent, 0 (nearly the same) to 1 (loosely related). */
+  distance?: number;
 }
 
 export interface AssistRequest {
@@ -418,6 +478,8 @@ export interface AssistRequest {
   seed: number;                     // same request + same seed = same local options
   /** For "evolve": the option to vary. */
   parent?: Option;
+  /** The author's preferences, read from storage by the caller; absent when the profile is switched off. */
+  profile?: PreferenceProfile;
 }
 
 export interface Option {
@@ -451,6 +513,8 @@ export interface Idea {
   ops: EditOp[];
   parentId?: string;
   rationale?: string;
+  /** For kind "take": the stored recording this idea was made from (§8, §10). */
+  takeId?: string;
 }
 
 export interface SuggestionRecord {
@@ -471,6 +535,13 @@ export interface PreferenceProfile {
   enabled: boolean;
 }
 ```
+
+Every `Option`, whichever provider made it, passes `validateOption(project, request, option)` in
+`src/assist/core/validate.ts` before it is shown: notes in range and on the grid, no overlaps within a
+voice, the requested length, locked notes untouched, nothing outside the target. Stage 5 writes it;
+Stage 6 adds repair for model output.
+
+`SuggestionRecord`s and the per-project `PreferenceProfile` are stored beside the project, not in it (§10).
 
 Key-highlight hints are synchronous and local, so they have their own small interface:
 
@@ -504,7 +575,8 @@ export interface GridBar {
 }
 ```
 
-The server converts `Project ⇄ GridBar[]`; triplets use a twelfth-of-a-beat variant of the same shape.
+`src/assist/core/grid.ts` (pure zone, run by the server) converts `Project ⇄ GridBar[]`; triplets use a
+twelfth-of-a-beat variant of the same shape.
 Every bar a model returns is validated (positions inside the bar, no overlaps within a voice, pitches in
 range) before it becomes an `Option`.
 
@@ -514,24 +586,26 @@ range) before it becomes an `Option`.
 export interface PitchFrame { time: number; f0: number | null; confidence: number; rms: number }
 
 export interface PitchTracker {
-  id: string;                       // "mpm", "crepe-tiny", …
+  id: string;                       // "mpm", "swift-f0"
   sampleRate: number;
   hopSeconds: number;
   /** Loads model weights if any. */
   ready(): Promise<void>;
-  process(block: Float32Array): PitchFrame[];
+  /** Asynchronous, because model inference is. */
+  process(block: Float32Array): Promise<PitchFrame[]>;
   reset(): void;
 }
 
-/** A recording waiting to be turned into notes. The contour is kept so it can be re-segmented. */
+/** A recording waiting to be turned into notes. The contour is kept so it can be re-read later. */
 export interface Take {
   id: string;
   kind: "hum" | "tap";
   createdAt: string;
   frames?: PitchFrame[];
-  taps?: { time: number; velocity: number; pad?: DrumPadId }[];
-  /** Tempo the take was recorded against, if the metronome was on. */
-  bpm?: number;
+  /** `held` is how long the pad or key stayed down, in seconds. */
+  taps?: { time: number; velocity: number; held: number; pad?: DrumPadId }[];
+  /** Set when the take was recorded against the click: the song position, in ticks, where it began. */
+  startTick?: number;
   audioBlobId?: string;
 }
 
@@ -541,11 +615,39 @@ export interface SegmentOptions {
   /** Cents the singer is sharp or flat overall; estimated when omitted. */
   tuningCents?: number;
   snapToKey?: { tonic: string; mode: string };
-  quantize?: { grid: 8 | 16 | 12; strength: number };
-  octaveShift?: number;
 }
-export function segmentTake(take: Take, opts: SegmentOptions): { notes: Omit<PNote, "id">[]; bpm: number; tuningCents: number };
+
+/** A note in the take's own time, before it has a place in the song. */
+export interface HeardNote { pitch: number; start: number; end: number; vel: number; conf: number }
+
+/** Step 1 — contour to notes, in seconds. Knows nothing about the song. */
+export function segmentTake(take: Take, opts: SegmentOptions): { notes: HeardNote[]; tuningCents: number };
+
+/** Step 2 — notes in seconds to notes in the song. */
+export function placeNotes(notes: HeardNote[], where: {
+  timeMap: TimeMap;
+  /** Song position of the take's first sample. */
+  startTick: number;
+  /** Calibrated input latency to subtract. */
+  latencyMs: number;
+  quantize?: { grid: 8 | 16 | "8t" | "16t"; strength: number; groove?: Groove };
+  /** Whole octaves to shift; when omitted, chosen so the notes sit inside `range`. */
+  octaveShift?: number;
+  range?: [number, number];
+  origin: Origin;
+}): Omit<PNote, "id">[];
+
+/** Tempo, meter and swing from a list of onset times: taps, hummed notes, or notes from a recording. */
+export function estimateTempo(onsets: { time: number; weight?: number }[]): {
+  bpm: number; meter: [number, number]; swing: number; confidence: number;
+  /** The same rhythm read at half and at double speed, for a one-tap correction. */
+  alternatives: number[];
+};                                                                    // src/music/tempo.ts
 ```
+
+A take recorded without the click has no `startTick`: its tempo comes from `estimateTempo` and it is
+placed at the cursor. Stage 8 uses `segmentTake` and `placeNotes` unchanged for the vocal and bass lines of
+a recording.
 
 ## 9. Server API
 
@@ -553,20 +655,52 @@ A small Node service (`server/`) that holds the keys and the long jobs. JSON in 
 `{ error: { code, message, retryable } }` with a matching HTTP status. All routes except `health` need the
 header `x-access-code`.
 
-| Route | Purpose | Stage |
+| Route | Request → response | Stage |
 | --- | --- | --- |
-| `GET /api/health` | Liveness and which features are configured | 6 |
-| `POST /api/assist/options` | `AssistRequest` (project trimmed to the context window) → `{ options: Option[] }` | 6 |
-| `POST /api/assist/critique` | Selection → observations, each with an optional `Option` that acts on it | 6 |
-| `POST /api/assist/chat` | Conversation turn → `{ say, options, question? }`, streamed as server-sent events | 6 |
-| `POST /api/import` | Audio upload or `{ url }` → `{ jobId }` | 8 |
-| `GET /api/import/:id` | `{ status, stage, progress, result?, error? }` | 8 |
-| `GET /api/import/:id/events` | The same as server-sent events | 8 |
-| `DELETE /api/import/:id` | Cancel and delete the job's files | 8 |
+| `GET /api/health` | → which features are configured | 6 |
+| `POST /api/assist/options` | `AssistOptionsBody` → `{ options: Option[] }` | 6 |
+| `POST /api/assist/critique` | `{ request: AssistRequest }` → `{ observations: Observation[] }` | 6 |
+| `POST /api/assist/chat` | `ChatBody` → `ChatReply`, streamed over the response body | 6 |
+| `POST /api/import` | multipart: `file` or `url`, and `kind` (`piano` or `song`) → `{ jobId }` | 8 |
+| `GET /api/import/:id` | → `ImportJob`; polled every two seconds | 8 |
+| `DELETE /api/import/:id` | cancels, and deletes the job's files | 8 |
+
+```ts
+export interface AssistOptionsBody {
+  /** The project inside is trimmed by the client to the section in question plus eight bars either side. */
+  request: AssistRequest;
+  /** Options already on screen, so the server does not repeat them. */
+  shown?: Pick<Option, "id" | "ops">[];
+}
+export interface Observation { dimension: string; text: string; try?: { kind: AssistKind; controls: Controls } }
+export interface ChatBody { request: AssistRequest; turns: { role: "author" | "cowriter"; text: string }[] }
+export interface ChatReply {
+  say: string;
+  options?: Option[];
+  question?: { prompt: string; choices: { label: string; controls?: Controls }[] };
+  briefPatch?: Partial<Brief>;
+}
+export interface ImportJob {
+  status: "queued" | "running" | "done" | "error";
+  stage?: "uploading" | "separating" | "transcribing" | "beats" | "chords";
+  progress?: number;                // 0..1
+  /** Present when done. Building a project from it happens in the browser. */
+  analysis?: AnalyzeResult;
+  error?: { code: string; message: string; retryable: boolean };
+}
+```
+
+The server builds the model's prompt from the `AssistRequest` with `src/assist/core/prompt.ts` and checks
+what comes back with `validate.ts`. Both are pure-zone modules, so the browser and the server cannot
+disagree about what a valid option is.
+
+Streaming uses the `fetch` response body, not `EventSource`: requests need the access-code header and a
+body, and `EventSource` can send neither. Import progress is polled; a job runs for a minute or more.
 
 The ML worker (`ml/`, Python) is private to the server. It does inference only and answers in seconds,
-never in ticks; all musical post-processing happens in TypeScript using the same `music/` code as the
-browser.
+never in ticks. Turning an `AnalyzeResult` into a project is TypeScript in the pure zone
+(`src/import/build/`) and **runs in the browser**, which keeps the result (§10) so the arrangement level
+can be changed later without another job.
 
 ```ts
 /** POST {ML_WORKER_URL}/analyze — multipart audio or { audioUrl } plus options. */
@@ -612,8 +746,15 @@ Local-first: a song the author builds lives in their browser until they export i
 | | store `projectMeta` | `{ id, title, updatedAt, bars, preview }` for fast listing |
 | | store `snapshots` | last 20 autosaved versions per project |
 | | store `songs` | user `Song`s by id (`u-…`): compiled or imported |
-| | store `blobs` | audio: hummed takes, reference audio for imports |
-| | store `kv` | assist cache, global preference profile |
+| | store `takes` | `Take`s by id: contours and taps, kept so they can be re-read |
+| | store `blobs` | audio (hummed takes, reference audio for imports) and stored `AnalyzeResult`s |
+| | store `kv` | `assist:<projectId>` — `{ history: SuggestionRecord[]; profile: PreferenceProfile }` |
+| | | `assist:profile` — the author's preferences across all songs |
+| | | `studio:<projectId>` — cursor, zoom, active track, tool, hint mode, authorship view |
+| | | `chat:<projectId>` — the last thirty co-writer turns |
+
+Exporting one project writes the project alone. "Export all my songs" (Stage 3) also carries each
+project's `kv` entries and takes.
 
 ## 11. Routes and feature flags
 
@@ -626,12 +767,13 @@ Hash routes, so the app keeps working on any static host and old links survive.
 | `#/studio` | Project list and "new song" | 3 |
 | `#/studio/:projectId` | Studio | 3 |
 | `#/import` | Import from audio | 8 |
-| `#/settings` | Access code, latency calibration, data export | 6 |
+| `#/settings` | Storage and backup (Stage 3), latency calibration (4), access code (6) | 3 |
 | `#<songId>` (legacy) | Redirects to `#/play/<songId>` | 1 |
 
 Flags let unfinished stages merge without showing: `studio`, `drums`, `assist`, `assist-ai`, `hum`,
 `import`, `import-youtube`. On when listed in `piano-tutor:flags` or in `?flags=a,b`. A stage removes its
-flag when its acceptance criteria pass.
+flag when its acceptance criteria pass. One more, `test-hooks`, exposes `window.__app` (player, project
+store, UI store) in a production build for end-to-end tests; it is always on in development builds.
 
 ## 12. Source layout and the pure zone
 
@@ -640,8 +782,8 @@ src/
   app/        shell, router, flags, settings, error boundary
   library/    home page, catalog, user-song listing
   components/ Practice (existing files stay where they are)
-  song/       Song types, loader, BeatMap, rhythm analysis
-  music/      ★ time, theory, quantize, analysis
+  song/       ★ Song types, normalize, BeatMap, rhythm analysis  (load.ts is not pure: it fetches)
+  music/      ★ time, tempo, theory, quantize, analysis, groove, voicing
   project/    ★ Project types, schema, edit ops, compile  (store.ts is not pure)
   assist/
     core/     ★ hints, generators, scoring, grid notation
@@ -650,7 +792,7 @@ src/
   audio/      engine, player, instruments, drums, mic worklet
   studio/     editor canvas, tools, panels
   capture/    hum: trackers, segmentation (★ segment.ts), review UI
-  import/     upload, job progress, review
+  import/     upload, job progress, review  (★ build/: AnalyzeResult → Project)
   storage/    IndexedDB
 server/       Node API (imports the ★ modules)
 ml/           Python inference worker

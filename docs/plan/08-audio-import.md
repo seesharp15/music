@@ -54,7 +54,9 @@ both paths:            beats and downbeats · chords · section edges     ──
 
 The Python worker does inference and answers in seconds (`AnalyzeResult`, contracts §9). Everything
 musical after that — the grid, the key, quantizing, splitting hands, arranging — is TypeScript in the
-pure zone, shared with the browser and unit-tested with recorded worker output.
+pure zone, unit-tested with recorded worker output, and **runs in the browser**: the server hands back
+the `AnalyzeResult`, the browser builds the project from it and keeps the result, so the arrangement
+level can be changed later without another job and the quick on-device import shares the same code.
 
 ## Engines
 
@@ -92,6 +94,9 @@ Notes for whoever builds the worker:
 
 ## TypeScript post-processing — `src/import/build/` (pure zone)
 
+`buildProject(analysis, { kind, level })` — `kind` is `piano` or `song`, `level` is one of the four below.
+Vocal and bass contours become notes through Stage 7's `segmentTake` and `placeNotes`.
+
 1. **Grid.** Build a `TimeMap` from beats and downbeats: meter from beats per bar; a tempo event per bar,
    smoothed so that ordinary human wobble does not become a hundred tempo changes; `gridOffset` at the
    first downbeat.
@@ -116,7 +121,8 @@ Notes for whoever builds the worker:
 
    Drum hits become a drum track, with repeated bars folded into patterns.
 7. **Sections** from the edges, snapped to downbeats, labelled A, B, C … unless an engine named them.
-8. **Assemble** the `Project`: every note `origin: "imported"` with its `conf`, `source` filled in.
+8. **Assemble** the `Project`: every note `origin: "imported"` with its `conf`; `source` filled in with the
+   engines, the level, the warnings (placed at their ticks) and the id of the stored `AnalyzeResult`.
 
 For a solo-piano import, the same level control **simplifies** rather than arranges: as played → thinned
 (doubled notes and inner voices removed, hand spans limited, ornaments shorter than 60 ms dropped) →
@@ -124,8 +130,8 @@ easy (melody with bass notes or shell chords).
 
 ## Server side
 
-- **Routes** per contracts §9 on the Stage 6 server: create a job from an upload or a link, read its
-  status, stream its progress, cancel it.
+- **Routes** per contracts §9 on the Stage 6 server: create a job from an upload or a link with its `kind`,
+  read its status (polled every two seconds; the finished job carries the `AnalyzeResult`), cancel it.
 - **Limits:** 50 MB and twelve minutes per file; one running job per access code; the same daily budget
   mechanism as Stage 6, counted in GPU-seconds.
 - **Files:** uploads go to temporary storage, are deleted when the job's result has been fetched or
@@ -135,8 +141,8 @@ easy (melody with bass notes or shell chords).
   estimated at a few US cents; the choice of provider and the first measured cost are a spike
   (`docs/plan/spikes/ml-hosting.md`) that the owner signs off, since it is their money. Locally the
   worker runs under Docker Compose on CPU, slowly, which is enough to develop against.
-- **Progress** stages reported to the client: uploading, separating, transcribing, finding the beat,
-  finding chords, arranging.
+- **Progress** stages reported by the server: uploading, separating, transcribing, finding the beat,
+  finding chords. Arranging then happens in the browser and takes a second or two.
 
 ## Quick import on the device — `src/import/quick/`
 
@@ -160,17 +166,27 @@ uploaded:
 - **Unsure notes** are drawn hollow. A confidence slider hides everything below a threshold as a preview;
   **Remove hidden** makes it real, as one undo step.
 - **Hands:** lasso a group of notes and send them to the left or the right.
-- **Level** can be changed after import. Parts the author has edited are left alone; only untouched
-  generated material is rewritten, and the change can be undone.
-- **Section by section:** each section has a "checked" tick, so a long song can be worked through in
-  sittings.
+- **Level** can be changed after import, by running `buildProject` again on the stored `AnalyzeResult`.
+  Parts the author has edited are left alone; only untouched generated material is rewritten, and the
+  change can be undone.
+- **Section by section:** each section has a "checked" tick (`PSection.checked`), so a long song can be
+  worked through in sittings.
 - **Warnings** from the analysis are shown where they apply: "tempo wanders in this section", "no clear
   vocal line found here", "these chords are a guess".
 - Leaving review mode is just saving: the project is an ordinary project.
 
-## YouTube adapter — `server/youtube.ts`, `ml/fetch/`
+## YouTube
 
-Built only if the owner asks for it. Kept in one adapter so it can be removed without touching the rest.
+Links were asked for, so they are specified here, in two forms.
+
+**Record this tab** — part of the import screen (S8.7), needing nothing from YouTube's servers beyond
+ordinary playback: in desktop Chrome and Edge, `getDisplayMedia` with audio lets the author play any tab
+and capture what they hear, which then goes through the upload path like any file. Offered wherever the
+browser supports it; absent, with a one-line reason, where it does not (Safari, phones).
+
+**Paste a link** — `server/youtube.ts`, `ml/fetch/` (S8.10). Built last, after the owner has read the
+points below and confirmed they still want it. Kept in one adapter so it can be removed without touching
+the rest.
 
 - `yt-dlp` on the server, with the JavaScript runtime and token-provider plugin it currently requires
   (the plugin is GPL-licensed and runs as a separate process). Expect requests from cloud addresses to
@@ -178,9 +194,8 @@ Built only if the owner asks for it. Kept in one adapter so it can be removed wi
 - Audio only, held only for the job, same deletion rules as uploads.
 - Enabled by `ENABLE_YOUTUBE=1` on the server and the `import-youtube` flag in the app. When it fails —
   and it will, periodically — the message says so and offers file upload.
-- **An alternative that needs no download from YouTube's servers:** in desktop Chrome, "record this tab"
-  (`getDisplayMedia` with audio) lets the author play any tab and capture what they hear, which then goes
-  through the upload path. Offer it wherever the browser supports it.
+- For a link import the review screen's reference is the embedded YouTube player, kept in step by
+  seeking; the audio itself is not kept.
 
 Not legal advice, but the plan would be incomplete without saying it: YouTube's terms of service do not
 allow downloading, and a transcription of someone else's song is that person's work arranged. Imported
@@ -197,10 +212,10 @@ app; publishing one is the owner's act and responsibility.
 | S8.4 | Server job routes, upload storage and deletion, progress stream, limits | `server/import.ts` | S6.1, S8.2 |
 | S8.5 | Post-processing for solo piano: grid, quantize, key, chords, hand split, simplify levels, assemble | `src/import/build/` | S2, S7.3 |
 | S8.6 | Post-processing for full songs: stems to melody and bass, arrange at four levels, drums, sections | `src/import/build/arrange.ts` | S8.5, S5.5 |
-| S8.7 | Import screen: file drop, type and level choice, progress, errors; entry points in Library and Studio | `src/import/ImportScreen.tsx` | S8.4 |
-| S8.8 | Review mode: reference playback in step, confidence filter, hand lasso, level switch, section ticks, warnings | `src/import/review/`, `src/studio/` (review hooks) | S8.5, S3 |
+| S8.7 | Import screen: file drop, record-this-tab where supported, type and level choice, progress, errors, running `buildProject` on the result and storing the `AnalyzeResult`; entry points in Library and Studio | `src/import/ImportScreen.tsx`, `TabCapture.tsx` | S8.4, S8.5 |
+| S8.8 | Review mode: reference playback in step, confidence filter, hand lasso, level switch, section ticks, warnings | `src/import/review/`, `src/studio/layers/review.ts` | S8.5, S3 |
 | S8.9 | Quick on-device import | `src/import/quick/` | S7.2, S8.5 |
-| S8.10 | YouTube adapter and tab-audio capture — only on the owner's say-so | `server/youtube.ts`, `ml/fetch/`, `src/import/TabCapture.tsx` | S8.4 |
+| S8.10 | Paste-a-link import through `yt-dlp` — after the owner confirms | `server/youtube.ts`, `ml/fetch/` | S8.4 |
 
 S8.5 and S8.6 are pure TypeScript and can be built against recorded `AnalyzeResult` fixtures before the
 worker exists, in parallel with S8.2–S8.4. S8.9 needs no server and can be built any time after Stage 7.
@@ -233,7 +248,8 @@ worker exists, in parallel with S8.2–S8.4. S8.9 needs no server and can be bui
    for this problem, not a typo: the result is a draft.)
 5. The post-processing is deterministic: the same `AnalyzeResult` gives a byte-identical `Project`.
 6. Every arranged left-hand part passes Stage 5's playability checks at every level; changing level
-   leaves author-edited notes untouched.
+   re-runs `buildProject` on the stored result with no server request and leaves author-edited notes
+   untouched.
 7. A four-minute song completes in under four minutes on the chosen GPU host, cold start included; the
    measured cost per import is recorded.
 
@@ -250,10 +266,16 @@ worker exists, in parallel with S8.2–S8.4. S8.9 needs no server and can be bui
 12. An imported project saves, reopens, compiles and plays in Practice with two hands; its notes carry
     `origin: "imported"`, and the authorship view counts notes the author corrected as changed by them.
 13. Quick import transcribes a thirty-second single-instrument fixture in under thirty seconds on a
-    mid-range phone with no network requests carrying audio.
+    mid-range phone (throttled Chromium, per `agent-protocol.md`) with no network requests carrying audio.
 14. With `import` off, no import code is downloaded. With `import-youtube` off or `ENABLE_YOUTUBE` unset,
     the link field is absent and the server refuses link jobs.
 15. Imported songs appear only under My songs; nothing in the app writes them to `public/songs/`.
+16. Record this tab, by hand in desktop Chrome: thirty seconds captured from a tab playing music arrives
+    in the import flow as a file and completes a job. In a browser without tab-audio capture the option
+    is absent and says why.
+17. With the link adapter enabled: a link to a short test video the owner may use completes a job and
+    yields a valid `AnalyzeResult`; a link that cannot be fetched fails within sixty seconds with a message
+    that names the fetch step and offers file upload.
 
 ## Test plan
 

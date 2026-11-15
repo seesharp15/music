@@ -144,10 +144,13 @@ It is a sound preference, saved with the others in `piano-tutor:prefs`.
 With Sustain on, the dampers are up. A note keeps ringing after its written end and fades the way a
 piano string does, until one of these happens:
 
-- it has faded out (about four seconds of real time to silence, regardless of playback speed);
+- it has faded out — a ring of several seconds in real time, whatever the playback speed (the criteria
+  give the envelope);
 - the same key is struck again;
 - Sustain is switched off, which silences everything still ringing within about 150 ms;
-- playback pauses, seeks, or wraps round a loop (the existing release-everything behaviour).
+- playback pauses, seeks, or wraps round a loop. Pause and seek already release everything. A loop wrap
+  does not — today notes are simply cut short at the loop's end — so with the pedal down the wrap needs
+  its own damp, or the end of the loop rings on over its start.
 
 This is a pedal held down for the whole piece, so harmonies blur into each other. That is what was asked
 for; pedalling that follows the music is Stage 9, and the `pedal` field in the song format is already
@@ -164,7 +167,12 @@ reserved for it.
 - The synth sounds hold at a sustain level while a key is down, which is fine; only the part after the
   written end has to decay.
 
-Two traps:
+Three traps:
+
+- **Release curves.** Tone's default exponential release falls much faster than its nominal time: by a
+  rough calculation a "four second" release is some 40 dB down after a second and a half, which is a
+  short tail, not a held pedal. Shape the release deliberately — a custom release curve, or a gain
+  envelope on the pedal-down voices — and judge it against the criteria and by ear, not by the number.
 
 - **Polyphony.** `PolySynth` drops notes past its voice limit (32 by default) rather than stealing old
   ones. With four-second tails, Divenire's fast passages will exceed that. Raise the limit (96 is
@@ -181,8 +189,8 @@ Two traps:
 | S1.1 | Index fields, `songs:index` script with `--check`, CI step, converter flags, metadata for the two songs | `scripts/`, `public/songs/index.json`, `docs/song-format.md` | S0 |
 | S1.2 | Library screen: cards, search, filters, sort, Continue row, states | `src/library/` | S1.1 |
 | S1.3 | Practice shell: top bar, unknown-song page, writing `recent` | `src/App.tsx`, `src/app/`, `src/session.ts` | S0.3 |
-| S1.4 | Master bus and limiter; `HandMix` in the player; volume and mute UI; migration; Stage, RhythmMap and Coach updates; shortcuts | `src/audio/player.ts`, `src/components/Practice.tsx`, `Stage.tsx`, `RhythmMap.tsx`, `Coach.tsx`, `src/session.ts` | S0.2 |
-| S1.5 | Sustain toggle and engine behaviour | `src/audio/player.ts`, `Practice.tsx` | S1.4 |
+| S1.4 | Master bus and limiter; `HandMix` in the player; volume and mute UI; migration; Stage, RhythmMap and Coach updates; shortcuts | `src/audio/player.ts`, `src/components/Practice.tsx`, `Stage.tsx`, `RhythmMap.tsx`, `Coach.tsx`, `src/session.ts` | S0.2, S0.6 |
+| S1.5 | Sustain toggle and engine behaviour, including the damp at a loop wrap | `src/audio/player.ts`, `Practice.tsx` | S1.4 |
 
 S1.1–S1.3 (Library) and S1.4–S1.5 (audio) share almost no files and can run as two parallel tracks.
 S1.3 and S1.4 both touch `src/session.ts`: S1.3 adds a call, S1.4 changes the saved shape; land S1.4 first
@@ -216,20 +224,22 @@ or coordinate.
 
 **Sustain**
 
-13. With Sustain on, a 0.2 s note is still audible (above −40 dBFS) 1.5 s after its written end and
-    silent (below −60 dBFS) by 6 s; with Sustain off it is silent within 1.2 s.
+13. A 0.2 s note, measured against its own level at its written end: with Sustain on it is no more than
+    20 dB down after 1.5 s and at least 50 dB down by 8 s; with Sustain off it is at least 40 dB down
+    within 1.2 s.
 14. Switching Sustain off during ringing reaches silence within 200 ms.
 15. Playing Divenire's densest 20 seconds with Sustain on, on each of the five sounds: no "max polyphony"
     warning, no dropped note, and the output peak stays under 0 dBFS.
-16. Pausing, seeking and loop wrap leave no ringing notes, as today.
+16. Pausing and seeking leave nothing ringing, as today. With Sustain on, a loop wrap damps what is
+    ringing within 200 ms, so the end of the loop does not sound over its start.
 17. The Stage 0 scheduling test still passes: note start times are unchanged by this stage.
 
 ## Test plan
 
 - Unit: index derivation (duration, note count, range, preview) against a small fixture; search and sort
   functions; session migration.
-- Playwright: criteria 1–7 and 11–12 as user flows; criteria 8, 9 and 13–15 as offline renders asserted on
-  samples.
+- Playwright: criteria 1–7 and 11–12 as user flows; criteria 8, 9 and 13–15 as offline renders (Stage 0's
+  `renderOffline`) asserted on samples.
 - By hand on an iPhone: sliders under a thumb, mute during playback, Sustain with the sampled grand piano.
 
 ## Risks
