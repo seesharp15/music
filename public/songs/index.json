@@ -1,4 +1,4 @@
 [
-  { "id": "rewrite-the-stars", "title": "Rewrite the Stars", "artist": "The Greatest Showman", "file": "rewrite-the-stars.json" },
-  { "id": "divenire", "title": "Divenire", "artist": "Ludovico Einaudi", "file": "divenire.json" }
+  {"id":"rewrite-the-stars","title":"Rewrite the Stars","artist":"The Greatest Showman","file":"rewrite-the-stars.json","genre":"film-tv","difficulty":3,"addedAt":"2026-11-04","duration":209.4,"bpm":125,"noteCount":1400,"range":[26,82],"preview":[0.26,0.24,0.46,0.48,0.62,0.65,0.68,1,0.54,0.7,0.72,0.89,1,0.81,0.92,0.52,0.62,0.67,0.5,0.6,0.73,0.54,0.78,0.81,0.68,0.65,0.76,0.68,0.67,0.9,0.6,0.73,0.98,0.95,0.54,0.81,0.51,0.89,0.68,0.65,0.71,0.97,0.69,0.92,0.43,0.84,0.3,0.38]},
+  {"id":"divenire","title":"Divenire","artist":"Ludovico Einaudi","file":"divenire.json","genre":"neoclassical","difficulty":4,"addedAt":"2026-11-04","duration":406.61,"noteCount":2996,"range":[38,88],"preview":[0.36,0.47,0.4,0.45,0.42,0.49,0.41,0.45,0.41,0.4,0.34,0.57,0.71,0.69,0.66,0.66,0.69,0.7,0.69,0.51,0.5,0.49,0.58,0.5,0.46,0.56,0.53,0.51,0.55,0.58,0.5,0.51,0.94,0.72,1,0.74,0.7,0.65,0.67,0.68,0.68,0.67,0.69,0.67,0.51,0.72,0.67,0.65]}
 ]
