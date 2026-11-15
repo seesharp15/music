@@ -16,16 +16,18 @@ Stage 7 (note segmentation), Stage 6's server · **Size:** very large · **Flags
    a lead sheet's worth of information — melody, harmony, bass, beat — that an *arranger* then turns
    into piano writing. So this stage has two paths, and its result is always a draft to correct, never a
    finished score. The review screen is half the feature.
-2. **Licences are the constraint, more than accuracy.** Most strong models here have permissive code
-   and weights that are non-commercial, unclear, or trained on non-commercial data. The clearly clean
-   set is small. This plan uses clean components wherever one exists, labels every engine with its
-   licence class, and keeps the non-commercial ones switched off unless the owner turns them on. See
-   "Engines" below and [research.md](research.md) §A. **The owner must say whether this project is, or
-   may become, commercial**; the defaults assume a personal, non-commercial project.
+2. **Licences: use the best tool, and keep the labels.** Most strong models here have permissive code
+   and weights that are non-commercial, unclear, or trained on non-commercial data; the clearly clean
+   set is small ([research.md](research.md) §A). **The owner has decided** (15 November 2026): this is
+   for personal use now, possibly commercial later, and licences are not to restrict the build. So each
+   step uses whichever engine does the job best, of any licence class. Every engine is still labelled
+   with its class, and one switch runs the pipeline without the non-commercial ones, so that going
+   commercial later means reading a table, not rebuilding.
 3. **YouTube is the least dependable part.** Fetching audio from a server now needs a JavaScript runtime,
    a token-provider side-car and, from cloud addresses, often a residential proxy; it breaks several
-   times a year; and YouTube's terms do not permit downloading. File upload is the primary path. The
-   YouTube adapter is last, separate, off by default, and the owner's decision.
+   times a year; and YouTube's terms do not permit downloading. File upload is the primary path, with
+   "record this tab" beside it. **The owner has deferred paste-a-link to a later change**; it stays
+   specified below so it can be picked up, and is not part of this build.
 
 ## What the user gets
 
@@ -62,23 +64,30 @@ level can be changed later without another job and the quick on-device import sh
 
 Each engine sits behind a small adapter and is listed in a registry with its version and **licence
 class**: *clean* (permissive code and weights), *grey* (permissive distribution, but weights unlicensed
-or trained on non-commercial data), *nc* (non-commercial). Engines of class *nc* load only when
-`ALLOW_NONCOMMERCIAL_MODELS=1`. The registry's contents are returned in `AnalyzeResult.engines` and
-stored in the project, so any import can be traced to what produced it.
+or trained on non-commercial data), *nc* (non-commercial). All classes are in use. Setting
+`EXCLUDE_NONCOMMERCIAL_MODELS=1` drops every *nc* engine and runs each step on its fallback instead: that
+is the switch for the day the project goes commercial, at which point the *grey* rows need a decision
+too. The registry's contents are returned in `AnalyzeResult.engines` and stored in the project, so any
+import can be traced to what produced it.
 
-| Step | Default | Class | Fallback | Optional, off by default |
+"First choice" is where the build starts. Where a second candidate is named, the spike (S8.1) runs both
+on the fixtures and keeps whichever scores better on this stage's measures; nothing here was compared
+head-to-head for this plan.
+
+| Step | First choice | Class | Also compare in the spike | Fallback |
 | --- | --- | --- | --- | --- |
-| Piano notes, velocity, pedal | Transkun v2 | grey | Kong et al. `piano-transcription-inference` (grey); Basic Pitch (clean, weaker, no pedal) | — |
-| Separation | Demucs `htdemucs_ft` through `audio-separator` | grey | plain `demucs` on CPU | RoFormer checkpoints (unclear) |
-| Beats, downbeats | Beat This! | clean | librosa beat tracker (no downbeats) | — |
-| Chords | lv-chordia | clean | `detectChord` per bar on the transcribed notes | — |
-| Vocal and bass lines | SwiftF0 pitch frames on the stem, then Stage 7's `segmentTake` | clean | Basic Pitch on the stem | — |
-| Inner parts | Basic Pitch on the "other" stem | clean | none: voice the chord symbols | — |
-| Drums | Onsets on the drum stem, classed kick / snare / hat by frequency band | clean | none | ADT_STR (share-alike); ADTOF (nc) |
-| Section edges | MSAF (edges and A/B/C labels) | clean | none: the author marks sections | all-in-one, SongFormer (nc; name verse and chorus) |
+| Piano notes, velocity, pedal | Transkun v2 | grey | Kong et al. `piano-transcription-inference` (grey) | Basic Pitch (clean, weaker, no pedal) |
+| Separation | Demucs `htdemucs_ft` through `audio-separator` | grey | A BS-RoFormer vocals checkpoint through the same package (unclear licence; its README reports cleaner vocals) | plain `demucs` on CPU |
+| Beats, downbeats | Beat This! | clean | — | librosa beat tracker (no downbeats) |
+| Chords | lv-chordia | clean | — | `detectChord` per bar on the transcribed notes |
+| Vocal and bass lines | SwiftF0 pitch frames on the stem, then Stage 7's `segmentTake` | clean | — | Basic Pitch on the stem |
+| Inner parts | Basic Pitch on the "other" stem | clean | — | none: voice the chord symbols |
+| Drums | ADTOF, in its PyTorch port | nc | ADT_STR (share-alike) | Onsets on the drum stem, classed kick / snare / hat by frequency band (clean) |
+| Sections, with names | all-in-one, in its maintained fork: intro, verse, chorus, bridge, outro | nc | SongFormer (nc; reported more accurate, heavier to run) | MSAF: edges and A/B/C labels only (clean) |
 | Key | `detectKey` on the notes, in TypeScript | — | — | — |
-| Hands | Dynamic-programming split, in TypeScript | — | — | midi2hands (clean) |
-| One-shot alternatives | — | — | — | MuScriptor (nc; whole mix to parts); Etude or Pop2Piano (nc or unclear; "AI piano cover") |
+| Hands | Dynamic-programming split, in TypeScript | — | midi2hands (clean) | — |
+| The whole mix in one model | — | — | MuScriptor (nc, access-gated): parts, beats, tempo map and drums from the mix in one pass. If it beats separate-then-transcribe on the full-song fixtures, it takes over the steps it wins | — |
+| "AI piano cover" in one step | — | — | Etude (nc; needs a 16 GB GPU). If it runs within budget, offer it as a clearly marked experimental extra beside the arranged result, never instead of it | — |
 
 Notes for whoever builds the worker:
 
@@ -184,9 +193,9 @@ ordinary playback: in desktop Chrome and Edge, `getDisplayMedia` with audio lets
 and capture what they hear, which then goes through the upload path like any file. Offered wherever the
 browser supports it; absent, with a one-line reason, where it does not (Safari, phones).
 
-**Paste a link** — `server/youtube.ts`, `ml/fetch/` (S8.10). Built last, after the owner has read the
-points below and confirmed they still want it. Kept in one adapter so it can be removed without touching
-the rest.
+**Paste a link** — `server/youtube.ts`, `ml/fetch/` (S8.10). Deferred by the owner to a later change. The
+specification stays so that it can be picked up then; it is kept to one adapter so adding it touches
+nothing else.
 
 - `yt-dlp` on the server, with the JavaScript runtime and token-provider plugin it currently requires
   (the plugin is GPL-licensed and runs as a separate process). Expect requests from cloud addresses to
@@ -206,16 +215,16 @@ app; publishing one is the owner's act and responsibility.
 
 | Id | Deliverable | Owns | Needs |
 | --- | --- | --- | --- |
-| S8.1 | **Spike:** worker hosting and cost; confirm weights licences for the default engines; one end-to-end run of each path on three test songs, with timings | `docs/plan/spikes/` | — |
+| S8.1 | **Spike:** worker hosting and cost; record each engine's weights licence; compare the candidates the Engines table names and choose by the measures; one end-to-end run of each path on three test songs, with timings | `docs/plan/spikes/` | — |
 | S8.2 | Worker gateway, engine registry with licence classes, engine images: beats, chords, piano transcription | `ml/` | S8.1 |
 | S8.3 | Worker engines for full songs: separation, stem pitch frames, inner parts, drums, section edges | `ml/engines/` | S8.2 |
-| S8.4 | Server job routes, upload storage and deletion, progress stream, limits | `server/import.ts` | S6.1, S8.2 |
+| S8.4 | Server job routes, upload storage and deletion, job status for polling, limits | `server/import.ts` | S6.1, S8.2 |
 | S8.5 | Post-processing for solo piano: grid, quantize, key, chords, hand split, simplify levels, assemble | `src/import/build/` | S2, S7.3 |
 | S8.6 | Post-processing for full songs: stems to melody and bass, arrange at four levels, drums, sections | `src/import/build/arrange.ts` | S8.5, S5.5 |
 | S8.7 | Import screen: file drop, record-this-tab where supported, type and level choice, progress, errors, running `buildProject` on the result and storing the `AnalyzeResult`; entry points in Library and Studio | `src/import/ImportScreen.tsx`, `TabCapture.tsx` | S8.4, S8.5 |
 | S8.8 | Review mode: reference playback in step, confidence filter, hand lasso, level switch, section ticks, warnings | `src/import/review/`, `src/studio/layers/review.ts` | S8.5, S3 |
 | S8.9 | Quick on-device import | `src/import/quick/` | S7.2, S8.5 |
-| S8.10 | Paste-a-link import through `yt-dlp` — after the owner confirms | `server/youtube.ts`, `ml/fetch/` | S8.4 |
+| S8.10 | Paste-a-link import through `yt-dlp` — **deferred by the owner; not part of this build** | `server/youtube.ts`, `ml/fetch/` | S8.4 |
 
 S8.5 and S8.6 are pure TypeScript and can be built against recorded `AnalyzeResult` fixtures before the
 worker exists, in parallel with S8.2–S8.4. S8.9 needs no server and can be built any time after Stage 7.
@@ -238,8 +247,9 @@ worker exists, in parallel with S8.2–S8.4. S8.9 needs no server and can be bui
 
 1. Each path runs end to end on its five fixtures and returns an `AnalyzeResult` that validates against
    the contract; the engines used and their licence classes are in the result.
-2. With `ALLOW_NONCOMMERCIAL_MODELS` unset, no engine of class *nc* is loaded, downloaded or present in
-   the default images.
+2. With `EXCLUDE_NONCOMMERCIAL_MODELS=1`, no engine of class *nc* is loaded or downloaded, and both paths
+   still complete on their fallbacks. The spike note lists every engine in use with its class and where
+   its weights' licence was read.
 3. Solo piano, through the default engine, on the fixtures: note F-measure at least 0.90; beat F-measure
    at least 0.85; hands agree with the reference for at least 90% of notes; key right for at least four
    of five.
@@ -273,7 +283,7 @@ worker exists, in parallel with S8.2–S8.4. S8.9 needs no server and can be bui
 16. Record this tab, by hand in desktop Chrome: thirty seconds captured from a tab playing music arrives
     in the import flow as a file and completes a job. In a browser without tab-audio capture the option
     is absent and says why.
-17. With the link adapter enabled: a link to a short test video the owner may use completes a job and
+17. (When S8.10 is built.) With the link adapter enabled: a link to a short test video the owner may use completes a job and
     yields a valid `AnalyzeResult`; a link that cannot be fetched fails within sixty seconds with a message
     that names the fetch step and offers file upload.
 
@@ -297,9 +307,9 @@ worker exists, in parallel with S8.2–S8.4. S8.9 needs no server and can be bui
   fixture measures are how an upgrade is judged.
 - **Cost surprises** from a GPU left running. Scale-to-zero only, a budget alarm on the provider, and the
   daily cap.
-- **Licence audit.** If the project's status changes, the registry's licence classes are the list to go
-  through. Until the owner has answered the commercial question, treat *grey* as acceptable for personal
-  use only.
+- **Licence audit.** The build uses non-commercial and unclearly licensed models, by the owner's
+  decision, for personal use. If the project is ever sold or monetised, that has to be revisited before
+  launch: set the exclusion switch, then go through the *grey* rows of the registry one by one.
 - **Separation artefacts** leak the voice into other stems and the other way round, which shows up as
   ghost notes. The confidence filter and the level control (which leans on chords rather than raw notes)
   are the mitigation.

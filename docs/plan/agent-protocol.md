@@ -85,7 +85,9 @@ Report plainly. If a test is failing, a criterion is unmet or a step was skipped
 Ask before doing any of these; none is implied by a work package:
 
 - Spending money: paid hosting, a GPU provider, running an eval that calls a paid API.
-- Shipping model weights or samples whose licence is anything other than plainly permissive.
-- Turning on the YouTube importer.
+- Bundling into the public app any sample or model file whose licence does not allow redistribution.
+  (Models run on the server may be of any licence class — the owner decided that for personal use, see
+  README §9 — but each must be recorded in the engine registry with its class.)
+- Building the paste-a-link YouTube importer, which the owner has deferred.
 - Making imported or user-built songs public in the song bank.
 - Removing or weakening an acceptance criterion.
