@@ -40,6 +40,12 @@ npm run midi-to-song -- in.mid public/songs/my-song.json --id my-song --title "M
 `render.yaml` defines a static site. In Render: **New → Blueprint**, pick this
 repo, and apply. Every push to the default branch redeploys.
 
+## Where this is going
+
+[docs/plan/](docs/plan/README.md) is the staged plan and specification for growing this into a song
+library, a practice player and a song-building studio (manual entry, assisted writing, drum pads,
+humming, and import from audio). Start with its README.
+
 ## Project layout
 
 ```
