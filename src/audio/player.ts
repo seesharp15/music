@@ -7,9 +7,38 @@ const MIN_LOOP = 0.25;
 const SKIP_LISTEN_SECONDS = 5;
 const SOFT_GAIN = 0.22;
 
-const SAMPLE_NOTES = ["A0", "C1", "D#1", "F#1", "A1", "C2", "D#2", "F#2", "A2", "C3", "D#3", "F#3",
-  "A3", "C4", "D#4", "F#4", "A4", "C5", "D#5", "F#5", "A5", "C6", "D#6", "F#6", "A6", "C7", "D#7",
-  "F#7", "A7", "C8"];
+const SAMPLE_NOTES = [
+  "A0",
+  "C1",
+  "D#1",
+  "F#1",
+  "A1",
+  "C2",
+  "D#2",
+  "F#2",
+  "A2",
+  "C3",
+  "D#3",
+  "F#3",
+  "A3",
+  "C4",
+  "D#4",
+  "F#4",
+  "A4",
+  "C5",
+  "D#5",
+  "F#5",
+  "A5",
+  "C6",
+  "D#6",
+  "F#6",
+  "A6",
+  "C7",
+  "D#7",
+  "F#7",
+  "A7",
+  "C8",
+];
 
 export type SoundId = "clear" | "soft" | "epiano" | "bright" | "piano";
 export type HandLevel = "on" | "soft" | "off";
@@ -425,7 +454,12 @@ export class Player {
         volume: -8,
       }).toDestination();
       for (let b = Math.ceil(this.scheduledUpTo / beat - 1e-6); b * beat < windowEnd; b++) {
-        this.click.triggerAttackRelease(b % perBar === 0 ? 1760 : 1175, 0.03, toCtx(b * beat), b % perBar === 0 ? 1 : 0.6);
+        this.click.triggerAttackRelease(
+          b % perBar === 0 ? 1760 : 1175,
+          0.03,
+          toCtx(b * beat),
+          b % perBar === 0 ? 1 : 0.6,
+        );
       }
     }
     this.scheduledUpTo = windowEnd;

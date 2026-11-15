@@ -46,7 +46,12 @@ export function StepThrough({ player, rhythm }: { player: Player; rhythm: Rhythm
     <div className="step-group" role="group" aria-label="Step">
       <span className="step-sep" aria-hidden />
       <span className="step-label">Step</span>
-      <button className="icon-btn step" onClick={() => step(-1)} aria-label="Previous moment" title="Previous moment (,)">
+      <button
+        className="icon-btn step"
+        onClick={() => step(-1)}
+        aria-label="Previous moment"
+        title="Previous moment (,)"
+      >
         <StepArrow dir={-1} />
       </button>
       <button className="icon-btn step" onClick={() => step(1)} aria-label="Next moment" title="Next moment (.)">
@@ -58,8 +63,21 @@ export function StepThrough({ player, rhythm }: { player: Player; rhythm: Rhythm
 
 function StepArrow({ dir }: { dir: 1 | -1 }) {
   return (
-    <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden style={dir === 1 ? undefined : { transform: "scaleX(-1)" }}>
-      <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+    <svg
+      viewBox="0 0 24 24"
+      width="28"
+      height="28"
+      aria-hidden
+      style={dir === 1 ? undefined : { transform: "scaleX(-1)" }}
+    >
+      <path
+        d="M9 5l7 7-7 7"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

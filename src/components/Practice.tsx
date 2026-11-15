@@ -129,8 +129,7 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
   };
 
   /** Anything repeating (a loop, or a zoomed-in stretch) counts as looping. */
-  const toggleLoop = () =>
-    player.state.loop.enabled || player.state.window ? playWholeSong() : startLoop();
+  const toggleLoop = () => (player.state.loop.enabled || player.state.window ? playWholeSong() : startLoop());
 
   useEffect(() => savePrefs({ sound, stereo, syncLines, keyMode }), [sound, stereo, syncLines, keyMode]);
 
@@ -191,7 +190,12 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
           <label className="group-label" htmlFor="sound">
             Sound
           </label>
-          <select id="sound" className="select" value={sound} onChange={(e) => player.setSound(e.target.value as SoundId)}>
+          <select
+            id="sound"
+            className="select"
+            value={sound}
+            onChange={(e) => player.setSound(e.target.value as SoundId)}
+          >
             {SOUNDS.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.label}
@@ -311,7 +315,6 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
             </button>
             <StepThrough player={player} rhythm={rhythm} />
           </div>
-
         </div>
 
         <div className="controls">
@@ -354,11 +357,7 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
         </div>
       </Collapsible>
 
-      <Collapsible
-        id="hands"
-        title="Hands"
-        summary={`Left ${LEVEL_LABEL[levels.L]} · Right ${LEVEL_LABEL[levels.R]}`}
-      >
+      <Collapsible id="hands" title="Hands" summary={`Left ${LEVEL_LABEL[levels.L]} · Right ${LEVEL_LABEL[levels.R]}`}>
         <div className="control-group">
           {(["L", "R"] as Hand[]).map((h) => (
             <button
@@ -375,11 +374,11 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
           ))}
         </div>
 
-
         <Coach player={player} rhythm={rhythm} loop={loop} syncLines={syncLines} onSyncLines={setSyncLines} />
 
         <p className="hint">
-          Space play/pause · ←/→ skip 5s of listening · ↑/↓ speed · , / . step · L loop · Esc clear loop · M metronome · R restart
+          Space play/pause · ←/→ skip 5s of listening · ↑/↓ speed · , / . step · L loop · Esc clear loop · M metronome ·
+          R restart
         </p>
       </Collapsible>
     </main>
@@ -388,11 +387,14 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
 
 function SkipIcon({ dir }: { dir: 1 | -1 }) {
   return (
-    <svg viewBox="0 0 24 24" width="35" height="35" aria-hidden style={dir === 1 ? { transform: "scaleX(-1)" } : undefined}>
-      <path
-        d="M12 5V2L7 6l5 4V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z"
-        fill="currentColor"
-      />
+    <svg
+      viewBox="0 0 24 24"
+      width="35"
+      height="35"
+      aria-hidden
+      style={dir === 1 ? { transform: "scaleX(-1)" } : undefined}
+    >
+      <path d="M12 5V2L7 6l5 4V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z" fill="currentColor" />
       <text
         x="12"
         y="16.2"

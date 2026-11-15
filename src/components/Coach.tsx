@@ -96,7 +96,8 @@ export function Coach({ player, rhythm, loop, syncLines, onSyncLines }: Props) {
         </div>
         <ol className="routine">
           {STAGES.map((s, i) => {
-            const state = routine === "done" ? "done" : active ? (i < active.stage ? "done" : i === active.stage ? "now" : "") : "";
+            const state =
+              routine === "done" ? "done" : active ? (i < active.stage ? "done" : i === active.stage ? "now" : "") : "";
             return (
               <li key={s.label}>
                 <button className={`routine-step ${state ? `is-${state}` : ""}`} onClick={() => startRoutine(i)}>
