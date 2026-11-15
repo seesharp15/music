@@ -89,6 +89,8 @@ export interface Note {
   track?: string;      // v2: id of an entry in Song.tracks; absent on bank songs
 }
 
+export interface Section { name: string; start: number; end: number }   // seconds; unchanged from v1
+
 export interface Song {
   format: "piano-song/v1" | "piano-song/v2";
   id: string;
@@ -497,6 +499,7 @@ export interface Option {
   traits?: Record<string, number>;
 }
 
+/** Declared in src/assist/providers/types.ts, outside the pure zone: `AbortSignal` is a platform type. */
 export interface AssistProvider {
   id: "local" | "ai";
   supports(kind: AssistKind): boolean;
