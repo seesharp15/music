@@ -100,7 +100,8 @@ The scheduling test covers *when*; the offline render covers *what it sounds lik
   fetches, to its own `src/song/normalize.ts`.
 - Add `src/project/types.ts` and `src/assist/core/types.ts` with the types from contracts §3, §5 and §7,
   and `src/music/time.ts` with `PPQ` and the `TimeMap` interface. Types only; implementations arrive in
-  Stage 2.
+  Stage 2. One exception: `AssistProvider` goes in `src/assist/providers/types.ts`, outside the pure zone,
+  because its `AbortSignal` parameter is a platform type the pure zone's compiler settings do not have.
 - Add `tsconfig.core.json` covering the pure zone (contracts §12) with `"lib": ["ES2022"]` and no DOM, and
   include it in `npm run typecheck`. Add an ESLint `no-restricted-imports` rule for the same directories
   forbidding `react`, `react-dom`, `tone` and anything under `src/audio`, `src/components`, `src/studio`.
