@@ -6,6 +6,7 @@ import { useSongIndex } from "./app/useSongIndex";
 
 // Each screen is its own chunk, so no screen downloads another's code.
 const PracticeRoute = lazy(() => import("./app/routes/PracticeRoute"));
+const CreditsRoute = lazy(() => import("./app/routes/CreditsRoute"));
 
 /** Routes are in the hash (`#/play/divenire`), so the app works on any static host. */
 export function App() {
@@ -25,6 +26,11 @@ export function App() {
               </Screen>
             )}
           </Route>
+          <Route path="/credits">
+            <Screen>
+              <CreditsRoute />
+            </Screen>
+          </Route>
           <Route>
             <Screen>
               <Home />
@@ -32,6 +38,9 @@ export function App() {
           </Route>
         </Switch>
       </Router>
+      <footer className="app-footer">
+        <a href="#/credits">Credits</a>
+      </footer>
     </div>
   );
 }

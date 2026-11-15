@@ -36,3 +36,12 @@ test("back and forward move between songs", async ({ page }) => {
   await page.goForward();
   await expect(page.getByRole("heading", heading("Divenire"))).toBeVisible();
 });
+
+test("the piano samples are credited, one tap from any page", async ({ page }) => {
+  await open(page, "#/play/rewrite-the-stars");
+  await page.getByRole("link", { name: "Credits" }).click();
+  await expect(page.getByRole("heading", heading("Credits"))).toBeVisible();
+  await expect(page.getByText("Salamander Grand Piano")).toBeVisible();
+  await expect(page.getByText("Alexander Holm")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Creative Commons Attribution 3.0" })).toBeVisible();
+});
