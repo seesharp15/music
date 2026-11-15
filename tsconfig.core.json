@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "types": [],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": [
+    "src/song",
+    "src/music",
+    "src/project",
+    "src/assist/core",
+    "src/capture/segment.ts",
+    "src/capture/place.ts",
+    "src/import/build"
+  ],
+  "exclude": ["src/song/load.ts", "src/project/store.ts", "**/*.test.ts"]
+}
