@@ -3,11 +3,14 @@
 **Goal:** hum, sing or whistle a melody into the microphone and get editable notes in the builder.
 Everything runs on the device; the recording never leaves it.
 
-**Depends on:** Stage 3 (Studio), Stage 2 (time, quantize, key), Stage 4's latency calibration ·
+**Depends on:** Stage 3 (Studio, and step mode's rhythm slots), Stage 2 (time, quantize, key,
+`estimateTempo`, the latency reader) ·
 **Unlocks:** Stage 8 reuses the note-segmentation code for vocal lines in imported audio · **Size:**
 medium · **Flag:** `hum`
 
-Needs no server. Can be built in parallel with Stages 4, 5 and 6.
+Needs no server. Can be built in parallel with Stages 4, 5 and 6. Two things here get better when those
+stages exist and are simply absent when they do not: recordings line up more exactly once a device has
+been calibrated (Stage 4's screen), and Tidy versions needs the Ideas tray (Stage 5).
 
 ## What the user gets
 
@@ -42,7 +45,7 @@ Needs no server. Can be built in parallel with Stages 4, 5 and 6.
 
 ### Hearing pitch — two trackers behind one interface
 
-Both implement `PitchTracker` (contracts §8).
+Both implement `PitchTracker` (contracts §8), whose `process` is asynchronous because model inference is.
 
 | Tracker | Used for | Why |
 | --- | --- | --- |
@@ -59,8 +62,10 @@ result may be rougher.
 
 ### From contour to notes — `src/capture/segment.ts` (pure)
 
-`segmentTake` (contracts §8). The starting point is the note segmenter in the SwiftF0 demo (MIT, short
-and readable); the steps below are what it must do, however it is written.
+Two functions (contracts §8): `segmentTake` turns the contour into notes in seconds, knowing nothing about
+the song (steps 1–6); `placeNotes` puts those notes into the song (steps 7–8). The starting point for the
+first is the note segmenter in the SwiftF0 demo (MIT, short and readable); the steps below are what the
+pair must do, however they are written.
 
 1. **Voiced or not:** a frame counts when its confidence clears a threshold and its level clears a noise
    floor estimated from the quietest tenth of the take.
@@ -77,10 +82,11 @@ and readable); the steps below are what it must do, however it is written.
 6. **Snap to key** (optional): an unsure note sitting between a scale tone and a neighbour goes to the
    scale tone. Never moved by more than a semitone; never applied to confident notes.
 7. **Timing:**
-   - recorded against the click — onsets are mapped through the project's `TimeMap`, corrected by the
-     calibrated input latency, and quantized by `strength`, with the remainder kept in `offset`;
-   - recorded freely — a tempo is estimated from the gaps between onsets (the same analysis as Tap the
-     beat) and offered; or the take is fitted to the song's existing tempo.
+   - recorded against the click — onsets are mapped through the project's `TimeMap` from the take's
+     `startTick`, corrected by `inputLatencyMs()`, and quantized by `strength`, with the remainder kept in
+     `offset`;
+   - recorded freely — a tempo is estimated from the onsets with `estimateTempo` (Stage 2) and offered; or
+     the take is fitted to the song's existing tempo.
 8. **Register:** people hum an octave or two below where a melody sits on a piano. Place the take in the
    melody track's range by whole octaves; `octaveShift` overrides.
 
@@ -102,16 +108,19 @@ Output notes have `origin: "hummed"`.
 └────────────────────────────────────────────────────────────────┘
 ```
 
-- Sliders re-run `segmentTake` on the stored frames; nothing is re-recorded. Changes are instant.
+- Sliders re-run `segmentTake` and `placeNotes` on the stored frames; nothing is re-recorded. Changes are
+  instant.
 - Tap a note for: up or down a semitone, split here, merge with next, delete.
 - Unsure notes are drawn hollow. They are kept, not hidden: the author decides.
 - **Add to song** inserts at the cursor on the melody track as one undo step. **Keep as idea** parks the
   take, with its recording, in the project's ideas. **Only the rhythm** discards pitch and creates rhythm
-  slots (Stage 4), for pitches to be chosen with hints. **Tidy versions** opens the Ideas tray with
+  slots (`setPending`), which Stage 3's step mode fills one key press at a time — with hints, once Stage 5
+  is there. **Tidy versions** opens the Ideas tray with
   options derived from the take — as sung; snapped to key; rhythm tidied to the song's groove; and, with
   the co-writer on, its reading of what was meant — so cleaning up a rough hum is a choice among versions
   rather than one automatic guess.
-- The recording is stored as a blob with the take so it can be replayed and re-read later. A take can be
+- The take (its contour) is stored in `takes` and its recording in `blobs` (contracts §10), so it can be
+  replayed and re-read later. A take can be
   deleted, recording and all, from the ideas drawer.
 
 Tips shown on first use, because they matter more than any algorithm: sing "da-da-da" rather than a
@@ -123,9 +132,9 @@ hummed "mmm" (the consonant marks each note), keep the phone close, use headphon
 | --- | --- | --- | --- |
 | S7.1 | Microphone capture: permission flow, worklet, worker, resampling, iOS audio-session handling, stopping cleanly | `src/audio/mic.ts`, `src/audio/worklets/`, `src/capture/worker.ts` | S2.5 |
 | S7.2 | `PitchTracker` implementations: McLeod, SwiftF0 on `onnxruntime-web`; model hosting; fallback | `src/capture/trackers/`, `public/models/` | S7.1 |
-| S7.3 | `segmentTake` and the note-accuracy scorer; synthetic fixtures | `src/capture/segment.ts`, `src/capture/score.ts`, `fixtures/hum/` | S2.1, S2.2 |
+| S7.3 | `segmentTake`, `placeNotes` and the note-accuracy scorer; synthetic fixtures | `src/capture/segment.ts`, `place.ts`, `score.ts`, `fixtures/hum/` | S2.1, S2.2 |
 | S7.4 | Hum panel: record with count-in and click, live trace and lit key, level meter | `src/capture/HumPanel.tsx` | S7.1, S7.2, S3.1 |
-| S7.5 | Review screen and the four exits; takes in the ideas drawer; recording storage | `src/capture/HumReview.tsx`, `src/storage/` | S7.3, S7.4, S5.6 for Tidy versions |
+| S7.5 | Review screen and its exits; takes in the ideas drawer; take and recording storage | `src/capture/HumReview.tsx`, `src/storage/` (the `takes` store) | S7.3, S7.4, S3.4; S5.6 for Tidy versions, hidden without it |
 | S7.6 | Real-voice fixture set and tuning pass | `fixtures/hum/` | S7.3 |
 
 S7.3 is pure and can start as soon as Stage 2 is done, alongside S7.1.
@@ -157,11 +166,13 @@ S7.3 is pure and can start as soon as Stage 2 is done, alongside S7.1.
    latency, lands on the intended grid steps.
 7. A take sung an octave and a fifth below the melody track's range is placed inside the range.
 8. Re-segmenting with a slider takes under 100 ms for a twenty-second take; transcription after stop
-   completes in under half the take's length on a mid-range phone.
+   completes in under half the take's length on a mid-range phone (throttled Chromium, per
+   `agent-protocol.md`).
 9. Add to song is one undo step producing notes with `origin: "hummed"` and a `conf` each; Only the rhythm
    produces the same number of rhythm slots as notes.
-10. A full take works in Chromium with the fake-microphone flags and a fixture recording, end to end,
-    and by hand on an iPhone in Safari: record, review, add, then play the song back at normal volume.
+10. A full take works in Chromium with the fake-microphone flags and a fixture recording, end to end.
+    The owner confirms the same by hand on an iPhone in Safari — record, review, add, then play the song
+    back at normal volume — before the flag comes off.
 11. With the model file blocked, transcription still returns notes through the fallback and the review
     screen says so.
 12. Loading the Library, Practice, or Studio without opening Hum downloads neither the model nor the

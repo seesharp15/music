@@ -91,8 +91,8 @@ Phone, upright:
 
 | Mode | What happens |
 | --- | --- |
-| **Step** (default) | Press a key: a note of the chosen length is written at the cursor and the cursor advances by that length. Keys pressed together (within 60 ms, or while others are still held) form a chord and advance once. Rest advances without writing. Tie lengthens the note just written. Backspace removes the last entry and steps back. |
-| **Record** | Press record: a count-in bar, then the transport runs with a click and whatever is played is captured with its timing and velocity. On stop the take becomes one undo step, quantized to the song's grid with the played feel kept in `offset` (a "keep my timing" switch decides whether the feel is applied on playback). With a loop set, each pass adds a layer. |
+| **Step** (default) | Press a key: a note of the chosen length is written at the cursor and the cursor advances by that length. Keys pressed together (within 60 ms, or while others are still held) form a chord and advance once. Rest advances without writing. Tie lengthens the note just written. Backspace removes the last entry and steps back. When the track has **rhythm slots** waiting (`Project.pending`: a tapped or hummed rhythm with no pitches yet, drawn as outlines), each key press instead gives the next slot its pitch, keeping the slot's start and length. |
+| **Record** | Press record: a count-in bar, then the transport runs with a click and whatever is played is captured with its timing and velocity. On stop the take becomes one undo step, quantized to the song's grid with the played feel kept in `offset`; timestamps are corrected by `inputLatencyMs()`. A "keep my timing" switch sets the track's `feel` to 1 or 0: whether that feel is applied on playback. With a loop set, each pass adds a layer. |
 | **Draw** tool | Tap an empty spot above a key: a note of the chosen length appears there, snapped to the grid. |
 | **Listen** | Keys only make sound. For trying things out without writing. |
 
@@ -216,7 +216,13 @@ beat" and "Bring in a recording" to the same place.
   move by Δ, resize, add, erase, scroll, zoom). No canvas, no store: unit-testable gesture logic.
 - `src/studio/EditorCanvas.tsx` — draws. Shares key and note drawing with Practice through helpers
   extracted from `Stage.tsx` into `src/components/stage-draw.ts`; Practice's `Stage` keeps its behaviour.
-- `src/studio/ui-store.ts` — cursor, selection, tool, mode, active track, zoom. Not undoable.
+- `src/studio/ui-store.ts` — cursor, selection, tool, mode, active track, zoom. Not undoable. Cursor,
+  zoom, active track and tool are saved per project under `studio:<projectId>` (contracts §10).
+- `src/studio/layers.ts` — the canvas draws through an ordered list of **layers**, each a small module
+  with `draw(ctx, view, state)` and an optional `hitTest`. Notes, gutters and the cursor line are the
+  first layers. Later stages add theirs — the drum lane, key hints, ghost notes for options, origin
+  tints, review marks — as new files registered with `registerLayer`, without editing
+  `EditorCanvas.tsx`. That is what lets those stages run in parallel.
 - `src/studio/input.ts` — one `NoteInput` event stream fed by on-screen keys, musical typing and MIDI;
   step and record modes consume it.
 - `src/studio/realize.ts` (pure zone candidate: put the logic in `src/music/voicing.ts`) — block-chord
@@ -227,18 +233,18 @@ beat" and "Bring in a recording" to the same place.
 
 | Id | Deliverable | Owns | Needs |
 | --- | --- | --- | --- |
-| S3.1 | Studio route and frame (phone and wide layouts, sheets), project list, My songs in the Library, new / duplicate / delete / rename, first-run choices | `src/studio/Studio.tsx`, `src/studio/sheets/`, `src/library/` | S2.3, S2.6 |
-| S3.2 | Editor canvas: notes, gutters, cursor line, grid, zoom and scroll, playback follow; shared draw helpers | `src/studio/EditorCanvas.tsx`, `view.ts`, `src/components/stage-draw.ts` | S2.4, S2.5 |
-| S3.3 | Interaction state machine, tools, selection, move / resize / add / erase, inspector, clipboard, keyboard commands, live region | `src/studio/interaction.ts`, `ui-store.ts`, `Inspector.tsx` | S3.2 |
-| S3.4 | Note input: on-screen keys, step mode, record mode with count-in and quantize, musical typing, MIDI in | `src/studio/input.ts`, `StepBar.tsx`, `src/audio/midi-in.ts` | S3.2, S2.5 |
+| S3.1 | Studio route and frame (phone and wide layouts, sheets), project list, My songs in the Library, new / duplicate / delete / rename, first-run choices, the read-only screen for a project that fails to load | `src/studio/Studio.tsx`, `src/studio/sheets/`, `src/library/` | S2.3, S2.6 |
+| S3.2 | Editor canvas: the layer list; notes, rhythm slots, gutters, cursor line, grid; zoom and scroll; playback follow; shared draw helpers; the UI store and its per-project persistence | `src/studio/EditorCanvas.tsx`, `layers.ts`, `view.ts`, `ui-store.ts`, `src/components/stage-draw.ts` | S2.4, S2.5 |
+| S3.3 | Interaction state machine, tools, selection, move / resize / add / erase, inspector, clipboard, keyboard commands, live region | `src/studio/interaction.ts`, `Inspector.tsx` | S3.2 |
+| S3.4 | Note input: on-screen keys, step mode (including filling rhythm slots), record mode with count-in and quantize, musical typing, MIDI in | `src/studio/input.ts`, `StepBar.tsx`, `src/audio/midi-in.ts` | S3.2, S2.5 |
 | S3.5 | Chord gutter editing, chord picker, Write to track | `src/studio/chords/`, `src/music/voicing.ts` | S3.2, S2.2 |
 | S3.6 | Sections sheet; `insertTime`, `deleteTime`, `copyRange` ops | `src/studio/sections/`, `src/project/ops.ts` | S3.2 |
 | S3.7 | Tracks and mixer sheet, song settings, tap tempo, transport and loop | `src/studio/tracks/`, `Transport.tsx`, `SongSettings.tsx` | S3.1, S2.5 |
-| S3.8 | Practice it, exports (project, song, MIDI), imports (project, MIDI), "open a copy" | `src/studio/io.ts`, `src/project/midi.ts` | S3.1, S2.4 |
+| S3.8 | Practice it — including Practice loading `u-…` songs from the device through the catalog instead of fetching them; exports (project, song, MIDI); imports (project, MIDI); "open a copy" | `src/studio/io.ts`, `src/project/midi.ts`, the song loading in `src/App.tsx` | S3.1, S2.4 |
 | S3.9 | Installable app (manifest, shell-caching service worker), install prompt, export-all, backup reminder | `public/manifest.webmanifest`, `src/sw.ts`, `src/app/settings/` | S3.1, S2.6 |
 
-S3.1 and S3.2 first, in parallel. Then S3.3–S3.9 can spread across agents: they meet only at the UI store
-and the sheet frame, both fixed by S3.1 and S3.2.
+S3.1 and S3.2 first, in parallel. Then S3.3–S3.9 can spread across agents: they meet only at the UI
+store, the layer list and the sheet frame, all fixed by S3.1 and S3.2.
 
 ## Acceptance criteria
 
@@ -261,10 +267,13 @@ and the sheet frame, both fixed by S3.1 and S3.2.
 8. MIDI export then MIDI import reproduces every note's pitch, tick and length; project export then
    import is deep-equal.
 9. With a 3,000-note project the editor holds 60 frames per second while playing and while dragging on a
-   mid-range phone (iPhone 12 or Pixel 6 class), measured with the performance trace attached to the PR.
+   mid-range phone — checked by the agent in throttled Chromium and by the owner on a device, as
+   `agent-protocol.md` describes — with the performance trace attached to the PR.
 10. Key press to sound in the editor adds no more than one audio render quantum beyond the device's own
     output latency (the Stage 2 measurement, through the real UI).
-11. Closing the tab mid-edit and reopening restores the project, the cursor position and the zoom.
+11. Closing the tab mid-edit and reopening restores the project, the cursor position and the zoom. A
+    stored project that fails validation opens read-only with the errors summarised and the newest good
+    snapshot offered; it never crashes the Studio.
 12. With the `studio` flag off, no Studio code is downloaded and the Library shows no My songs section.
 13. Practice is unchanged: its smoke and scheduling tests pass, and its `Stage` draws pixel-identical
     frames for a fixture song before and after the draw-helper extraction.

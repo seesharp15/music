@@ -3,7 +3,8 @@
 **Goal:** a drum-pad instrument inside Studio that does two jobs: adds a drum part to a song, and sets
 the song's beat — its tempo, meter and feel — by tapping it.
 
-**Depends on:** Stage 3 (Studio frame, transport), Stage 2 (engine drums, quantize, groove) ·
+**Depends on:** Stage 3 (Studio frame, transport, step mode's rhythm slots), Stage 2 (engine drums,
+quantize, `estimateTempo`, the latency reader) ·
 **Unlocks:** rhythm-first melody writing in Stage 5; bass lines that lock to the kick · **Size:** medium ·
 **Flag:** `drums`
 
@@ -46,10 +47,10 @@ the song's beat — its tempo, meter and feel — by tapping it.
 - With the transport looping (default: four bars at the cursor), record arms the drum track. Each pass
   **adds** to what is there; a per-pad "clear this pad" removes one voice from the loop without stopping.
 - Hits are stamped from the event's own timestamp mapped onto the audio clock, minus the device's input
-  latency (below), so the recording lines up with what was heard.
+  latency (`inputLatencyMs()`), so the recording lines up with what was heard.
 - On stop, hits are quantized to the song's grid; the distance each moved is kept in `offset`, and a
-  **Tighten** slider (0–100%) scales how much of that feel plays back. Nothing is thrown away: sliding
-  back to 0% returns the performance as played.
+  **Tighten** slider (0–100%) sets how much of that feel plays back — it is the track's `feel`, shown
+  the other way up. Nothing is thrown away: sliding back to 0% returns the performance as played.
 - Recorded hits land as free `hits` on the drum track. **Make a pattern** turns the looped bars into a
   reusable `DrumPattern` clip.
 
@@ -58,13 +59,15 @@ the song's beat — its tempo, meter and feel — by tapping it.
 Touch-to-sound and sound-to-ear delays differ by device, and Bluetooth headphones add a great deal. A
 one-time **calibrate** step (Settings, and offered the first time a recording looks consistently late):
 tap along with eight clicks; the median offset between taps and clicks is stored per device in
-`piano-tutor:latency` and subtracted from every recorded timestamp — pads, live notes in Stage 3, and
-humming in Stage 7. The screen says plainly when Bluetooth audio is in use and recommends wired or the
+`piano-tutor:latency`. Stage 2's `inputLatencyMs()` already reads that key, so pads, live notes in
+Stage 3 and humming in Stage 7 all pick the value up with no further change; until a device is calibrated
+they subtract nothing. The screen says plainly when Bluetooth audio is in use and recommends wired or the
 built-in speaker for recording.
 
 ### The step grid
 
-- One row per pad in use, sixteen or thirty-two columns per bar, one to four bars. Tap a square to cycle
+- One row per pad in use; one to four bars; the columns per bar (`stepsPerBar`) follow the meter and the
+  feel — 16 or 32 in 4/4, 12 in 3/4 and 6/8 and for triplet or shuffle feels. Tap a square to cycle
   off → soft → medium → hard. Rows can be muted, cleared, shifted a step left or right.
 - The playing column is highlighted. Pads and grid are two views of the same pattern: a recorded loop
   shows up in the grid, and squares toggled in the grid sound on the next pass.
@@ -76,12 +79,11 @@ built-in speaker for recording.
 The path from a rhythm in someone's head to the song's grid.
 
 1. The author taps freely — on any pad, with no click — for at least two bars.
-2. `analyzeTaps(taps)` (pure, `src/music/groove.ts`) estimates:
-   - **tempo**, from the autocorrelation of onset times, preferring 70–140 BPM when two answers are an
-     octave apart;
-   - **meter**, from the period of the accent pattern (which pad, how hard): three, four or six pulses;
-   - **swing**, from the ratio of long to short gaps between off-beat hits;
-   - a **`Groove`** (contracts §3): the average signed timing offset and accent per step across the bar.
+2. Two pure functions read the taps:
+   - `estimateTempo` (Stage 2, `src/music/tempo.ts`) gives the **tempo**, the **meter** — three, four or
+     six pulses, from the pattern of accents — and the **swing**;
+   - `extractGroove(taps, tempo)` (`src/music/groove.ts`) gives a **`Groove`** (contracts §3): the average
+     signed timing offset and accent per step across the bar.
 3. The result is shown as a sentence and a picture — "96 BPM, 4/4, light swing" over the taps laid on the
    detected grid — with **Use for this song**, **Halve / Double** the tempo, and **Try again**. Nothing
    changes in the song until the author accepts.
@@ -97,7 +99,7 @@ groove instead of the bare grid, so a melody sits in the same pocket as the drum
   rock, four-on-the-floor, half-time, shuffle, 6/8 ballad, waltz, bossa, funk, trap-style hats, train
   beat, plus fills. Written for this project as plain `DrumPattern` data in `src/audio/grooves.ts`.
 - Audition a groove in place against the song before dropping it in.
-- **Vary** (deterministic, seeded, in `src/music/groove.ts`): a handful of named transformations — add
+- **Vary** (deterministic, seeded, in `src/music/drum-vary.ts`): a handful of named transformations — add
   ghost snares, open the hat on off-beats, drop the kick on a beat, double-time or half-time the hats,
   thin out, humanize — each producing a new pattern beside the original, never replacing it. The
   assistant's drum suggestions in Stages 5 and 6 arrive as ordinary options through the same door.
@@ -105,11 +107,12 @@ groove instead of the bare grid, so a melody sits in the same pocket as the drum
 ### Tap a rhythm for a melody
 
 A melody tool that uses the pads: **Tap rhythm**. While the loop plays, the author taps the rhythm of the
-line they hear on a single pad. The taps become a `Take` of kind `tap` and then a row of **empty notes** —
+line they hear on a single pad, holding it for as long as each note should last. The taps become a `Take`
+of kind `tap` and then a row of **empty notes** —
 right start, right length, no pitch (`Project.pending`, contracts §3) — on the melody track, drawn as
 outlines. Step
-mode then walks through them: each key press gives the next empty note its pitch. Unfilled notes do not
-sound and are not compiled. In Stage 5 the key hints light up for each one in turn.
+mode (Stage 3) then walks through them: each key press gives the next empty note its pitch. Unfilled
+notes do not sound and are not compiled. In Stage 5 the key hints light up for each one in turn.
 
 ## Technology
 
@@ -127,13 +130,13 @@ sound and are not compiled. In Stage 5 the key hints light up for each one in tu
 | --- | --- | --- | --- |
 | S4.1 | Pads panel: grid, triggering, velocity, keys, feedback, kit switcher; sampled-kit loader and manifest format | `src/studio/pads/`, `src/audio/kits.ts`, `public/kits/` | S3.1, S2.5 |
 | S4.2 | Loop recording, overdub, per-pad clear, quantize with Tighten, Make a pattern | `src/studio/pads/record.ts` | S4.1, S3.4 |
-| S4.3 | Latency calibration and its use in all recording paths | `src/audio/latency.ts`, `src/app/settings/` | S4.1 |
-| S4.4 | Step grid, pattern list, clips on the timeline, per-section assignment; drum lane in the editor; a Drums volume and mute in Practice for songs that have drums | `src/studio/pads/StepGrid.tsx`, `src/studio/EditorCanvas.tsx` (drum lane only), `src/components/Practice.tsx` (drums row only) | S4.1 |
-| S4.5 | `analyzeTaps`, Tap the beat flow, groove-aware quantize | `src/music/groove.ts`, `src/studio/pads/TapBeat.tsx` | S4.1, S2.1 |
-| S4.6 | Starter grooves, audition, Vary | `src/audio/grooves.ts`, `src/music/groove.ts` | S4.4 |
-| S4.7 | Tap rhythm → empty notes → pitch entry in step mode | `src/studio/pads/TapRhythm.tsx`, `src/studio/input.ts` | S4.2, S3.4 |
+| S4.3 | Latency calibration: the tap-along screen that measures and stores the value, and the Bluetooth warning | `src/audio/latency.ts` (the writer), `src/app/settings/` | S4.1 |
+| S4.4 | Step grid, pattern list, clips on the timeline, per-section assignment; drum lane in the editor; a Drums volume and mute in Practice (`setDrumMix`) for songs that have drums | `src/studio/pads/StepGrid.tsx`, `src/studio/layers/drums.ts`, `src/components/Practice.tsx` (drums row only) | S4.1 |
+| S4.5 | `extractGroove`, Tap the beat flow, groove-aware quantize | `src/music/groove.ts`, `src/studio/pads/TapBeat.tsx` | S4.1, S2.1 |
+| S4.6 | Starter grooves, audition, Vary | `src/audio/grooves.ts`, `src/music/drum-vary.ts` | S4.4 |
+| S4.7 | Tap rhythm: taps to a take to rhythm slots (`setPending`). Filling the slots is already Stage 3's step mode | `src/studio/pads/TapRhythm.tsx` | S4.2, S3.4 |
 
-After S4.1: S4.2–S4.6 in parallel; S4.7 after S4.2.
+After S4.1: S4.2, S4.3, S4.4 and S4.5 in parallel; S4.6 after S4.4; S4.7 after S4.2.
 
 ## Acceptance criteria
 
@@ -145,16 +148,19 @@ After S4.1: S4.2–S4.6 in parallel; S4.7 after S4.2.
    hats, each up to 30 ms off) records onto the right steps; at Tighten 0% the compiled times equal the
    performed times within 2 ms, at 100% they sit exactly on the grid.
 4. With a stored input latency of 60 ms, the same performance injected 60 ms late records identically.
-5. `analyzeTaps` on synthetic taps recovers tempo within 2% across 60–180 BPM, tells 3/4, 4/4 and 6/8
-   apart on accented fixtures, and recovers a swing ratio within 0.04 for straight, light and triplet
-   swing. Halving and doubling ambiguity resolves to the 70–140 range.
+5. `estimateTempo` on synthetic taps across 60–180 BPM returns the true tempo within 2%, or exactly half
+   or double it with the true tempo among its `alternatives`; for fixtures between 70 and 140 BPM it
+   returns the true tempo itself. It tells 3/4, 4/4 and 6/8 apart on accented fixtures and recovers a
+   swing ratio within 0.04 for straight, light and triplet swing. `extractGroove` recovers a constant
+   20 ms push on the off-beats within 5 ms.
 6. Tap the beat changes nothing until accepted, and accepting is one undo step.
 7. A pattern edited in the step grid is heard on the next loop pass without stopping; the same pattern
    placed twice with repeats compiles to the right hits; changing the pattern changes both placements.
 8. Vary produces a different, valid pattern for each transformation and the same pattern again for the
    same seed.
-9. Tap rhythm with eight taps creates eight empty notes with the tapped starts and lengths; eight key
-   presses in step mode fill them in order; an unfilled note is absent from the compiled song.
+9. Tap rhythm with eight taps creates eight rhythm slots whose starts are the tapped times and whose
+   lengths are the times each tap was held, both snapped to the grid; eight key presses in step mode fill
+   them in order; an unfilled slot is absent from the compiled song.
 10. Practice plays a user song's drums in time with its notes, with a Drums volume and mute beside the
     two hands; bank songs without drums show no such control.
 11. Every pad, grid square and control is operable by keyboard and labelled; the grid announces "kick,
@@ -163,7 +169,7 @@ After S4.1: S4.2–S4.6 in parallel; S4.7 after S4.2.
 
 ## Test plan
 
-- Unit: `analyzeTaps` over generated tap sequences with jitter; groove extraction and groove quantize;
+- Unit: `extractGroove` over generated tap sequences with jitter; groove quantize;
   pattern expansion; Vary transformations; tap-rhythm note lengths.
 - Playwright: pointer-driven pad hits with injected timestamps; record, tighten, undo; step grid during
   playback; Tap the beat end to end; offline render of a pattern against a click.

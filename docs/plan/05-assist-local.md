@@ -87,7 +87,7 @@ On screen: the strongest three keys glow, the next few glow faintly, the rest no
 light would say nothing. The same strengths appear as a soft glow on the cursor line above those keys.
 While notes are being played quickly the lights hold still and update after a pause of about 400 ms, so
 they inform rather than flicker. Hints start **Off** in a new project; the first-run screen asks "write
-with hints, or without?", and the choice is remembered per project.
+with hints, or without?", and the choice is remembered per project (`studio:<projectId>`, contracts §10).
 Holding a lit key (or hovering) says why: "the 3rd of A minor", "finishes the pattern from bar 2",
 "steps back after the leap". With Tap rhythm slots waiting (Stage 4), hints follow the slot being filled.
 
@@ -114,7 +114,7 @@ contour. `surprise` sets how adventurous sampling within the beam is.
 | `melody.answer` | A reply to the selected phrase: same rhythm, similar opening, a closing cadence |
 | `melody.fill` | Notes joining what comes before a gap to what comes after it |
 | `melody.fromRhythm` | Pitches for tapped or locked rhythms |
-| `melody.fromContour` | Notes following a line the author draws across the bars with a finger |
+| `melody.fromContour` | Notes following a line the author draws across the bars with a finger (`controls.shape`) |
 | `melody.fromChords` | A melody over existing chords, offered **skeleton first**: one or two structural notes per bar, forming a smooth line through the chords' thirds and sevenths. The author adjusts the skeleton; **Decorate** then adds the notes between at the chosen density. |
 
 **Choosing which to show.** The search produces dozens of candidates; four are shown. They are picked for
@@ -169,8 +169,8 @@ Pure writers, each `(chords, meter, key, drums?, controls) → notes`, registere
   stride; ballad roll (root–5th–10th); syncopated pop.
 - **Voicing** for either: close with least-movement inversions, shell (root with 3rd or 7th), open (root
   and 10th), rootless.
-- **Playable by a hand.** The left hand spans at most a ninth by default (`handSpan`, adjustable in song
-  settings), at most four notes at once, and no leap larger than an octave between consecutive eighths at
+- **Playable by a hand.** The left hand spans at most a ninth by default (`Project.handSpan`, adjustable
+  in song settings), at most four notes at once, and no leap larger than an octave between consecutive eighths at
   the song's tempo. A writer that cannot satisfy this simplifies its own output and says so in the
   rationale.
 
@@ -201,8 +201,8 @@ rhythm, register or voicing.
 - **✓ Take.** Applies the ops as one undo step. Notes get `origin: "suggested"` and the suggestion's id.
   **Take part**: tap the ghost notes wanted, then take only those.
 - **♲ Evolve.** Four children of that option, with the parent kept at the left for comparison and a trail
-  back through the generations. A **how different** control sets the size of the mutation, from "nearly
-  the same" to "loosely related". Listening tires quickly, so a round is four options, not twelve.
+  back through the generations. A **how different** control (`controls.distance`) sets the size of the mutation, from
+  "nearly the same" to "loosely related". Listening tires quickly, so a round is four options, not twelve.
 - **☆ Keep.** Parks it in the project's ideas for later; an Ideas drawer lists parked ideas, takes and
   tapped rhythms, and any can be dragged onto the song.
 - **✕ Dismiss.** Removes it and counts as a "not this".
@@ -210,7 +210,9 @@ rhythm, register or voicing.
   seed; "Something different" raises surprise and excludes anything near what has been shown.
 - **Why?** opens the rationale and the measured traits for each option.
 
-Every request and its outcome is recorded as a `SuggestionRecord`.
+Every request and its outcome is recorded as a `SuggestionRecord` — beside the project, not in it
+(contracts §10). Asking, auditioning, dismissing and answering listening questions leave the project file
+untouched; only Take and Keep change it.
 
 ### 5.7 Help me find it — `probes.ts`
 
@@ -246,8 +248,9 @@ not grade.
 
 ### 5.9 Preferences and authorship — `profile.ts`, authorship view
 
-- **Preference profile** (contracts §7): running averages, updated on take (full weight), keep (half) and
-  dismiss (negative half), over: surprise, density, step-versus-leap, favoured flavours and accompaniment
+- **Preference profile** (contracts §7), one per project and one across all songs, both stored outside
+  the project (contracts §10) and passed to providers on the request: running averages, updated on take
+  (full weight), keep (half) and dismiss (negative half), over: surprise, density, step-versus-leap, favoured flavours and accompaniment
   styles. Used to set the tray's default controls and as a small term (at most 15%) in ranking. The
   wildcard option ignores it. A panel states it in plain words — "You usually pick stepwise lines and
   sparse bass" — with Reset and an on/off switch. It never leaves the device in this stage.
@@ -268,14 +271,14 @@ if a held-out comparison shows the fitted tables predict real melodies better th
 | Id | Deliverable | Owns | Needs |
 | --- | --- | --- | --- |
 | S5.1 | `contextAt`, scorer features and weights table, `hintsAt` with modes and Spice | `src/assist/core/context.ts`, `hints.ts`, `weights.ts` | S2.2 |
-| S5.2 | Hint display on keys and cursor line, mode switch, "why" popover | `src/studio/EditorCanvas.tsx` (hint layer), `src/assist/ui/HintControls.tsx` | S5.1, S3.2 |
+| S5.2 | Hint display on keys and cursor line, mode switch, "why" popover | `src/studio/layers/hints.ts`, `src/assist/ui/HintControls.tsx` | S5.1, S3.2 |
 | S5.3 | Melody generators: rhythm sources, beam search, all `melody.*` kinds, variation transforms, diversity pick, labels | `src/assist/core/melody.ts`, `rhythm-cells.ts`, `label.ts` | S5.1 |
 | S5.4 | Harmonizer: scoring, k-best, flavours, known loops, substitute, reharmonize | `src/assist/core/harmony.ts` | S2.2 |
-| S5.5 | Bass and accompaniment writers, voicings, playability check | `src/assist/core/accompany.ts`, `src/music/voicing.ts` | S2.2, S3.5 |
-| S5.6 | Local provider in a worker; Ideas tray: asking, audition with ghosts, take, take part, evolve, keep, dismiss, controls, records; Ideas drawer | `src/assist/providers/local.ts`, `src/assist/ui/` | S5.3 or S5.4 (one is enough to start), S3.3 |
+| S5.5 | Bass and accompaniment writers, voicings, playability check; and, when Stage 4 is present, drum options (`drums.pattern`, `drums.fill`) drawn from its starter grooves and Vary | `src/assist/core/accompany.ts`, `drums.ts`, `src/music/voicing.ts` | S2.2, S3.5; S4.6 for the drum options |
+| S5.6 | `validateOption` (contracts §7); local provider in a worker; Ideas tray: asking, audition with ghosts, take, take part, evolve, keep, dismiss, controls, records; Ideas drawer | `src/assist/core/validate.ts`, `src/assist/providers/local.ts`, `src/assist/ui/`, `src/studio/layers/ghosts.ts` | S5.3 or S5.4 (one is enough to start), S3.3 |
 | S5.7 | Contour drawing input; Help me find it | `src/assist/ui/Contour.tsx`, `src/assist/core/probes.ts` | S5.3, S5.6 |
 | S5.8 | Melody coach | `src/assist/core/coach.ts`, `src/assist/ui/Coach.tsx` | S5.1, S5.6 |
-| S5.9 | Preference profile and panel; authorship view | `src/assist/core/profile.ts`, `src/assist/ui/Profile.tsx`, editor tint layer | S5.6 |
+| S5.9 | Preference profile and panel; authorship view | `src/assist/core/profile.ts`, `src/assist/ui/Profile.tsx`, `src/studio/layers/origin.ts` | S5.6 |
 
 S5.1 first. Then S5.3, S5.4 and S5.5 are independent pure-logic packages well suited to parallel agents,
 while S5.2 and S5.6 build the UI against the `AssistProvider` interface with a stub provider.
@@ -284,8 +287,9 @@ while S5.2 and S5.6 build the UI against the `AssistProvider` interface with a s
 
 **Rules**
 
-1. With the tray open and options showing, the stored project is byte-identical to before the request
-   until Take is pressed. Take is exactly one undo step and restores byte-identically.
+1. Through asking, auditioning, evolving, dismissing and answering Help-me-find-it questions, the stored
+   project stays byte-identical to before the first request; it changes only on Take or Keep. Take is
+   exactly one undo step, and undoing it restores the project byte-identically.
 2. Notes listed in `locked`, and every note on a locked track, are unchanged in every option of every
    kind, over 500 seeded random requests.
 3. A taken note has `origin: "suggested"` and its `sid`; moving it sets `edited: true`; the authorship
@@ -294,7 +298,8 @@ while S5.2 and S5.6 build the UI against the `AssistProvider` interface with a s
 
 **Hints**
 
-5. `hintsAt` returns within 8 ms for any cursor position in a 3,000-note project on a mid-range phone.
+5. `hintsAt` returns within 8 ms for any cursor position in a 3,000-note project on a mid-range phone
+   (in throttled Chromium, per `agent-protocol.md`).
 6. In C major over a C chord on a downbeat with previous note D4, Smart mode's strongest hints are C4 and
    E4. After an upward leap C4 → A4, the strongest is G4. With the last three notes matching the start of
    an earlier four-note motif, the note completing it is among the top two with reason `motif`. (These
@@ -304,8 +309,10 @@ while S5.2 and S5.6 build the UI against the `AssistProvider` interface with a s
 
 **Options**
 
-8. Every option of every kind passes validation over 1,000 seeded requests: notes in range and on the
-   grid, no overlaps within a voice, exact requested length, in the key unless `surprise` > 0.6.
+8. Every option of every kind passes `validateOption` over 1,000 seeded requests: notes in range and on
+   the grid, no overlaps within a voice, exact requested length. In addition every melody and bass pitch
+   is one of: a note of the key; a note of the chord sounding beneath it; or a half-step approach into the
+   next note on a weak beat. Every chord comes from the palette of the requested flavour.
 9. Same request and seed give identical options; a different seed gives a different set.
 10. The four options in a set differ: every pair is at least 0.25 apart on the selection distance.
 11. `keep: "rhythm"` options have exactly the selection's onsets and lengths; `melody.fromContour` options

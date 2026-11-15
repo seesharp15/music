@@ -21,16 +21,23 @@ server and every later stage. Built ad hoc inside features, they would be built 
 - `makeTimeMap(tempo, meter)` implements `TimeMap` (contracts §1): piecewise-linear tick ⇄ seconds
   across tempo changes, bar and beat arithmetic across meter changes. Exact round trip:
   `tickAt(secondsAt(t)) === t` for integer ticks.
-- `beatMapOf(song)` implements `BeatMap` for songs: constant tempo from `bpm` and `gridOffset`, piecewise
-  from `tempoMap`, `null` for free-time songs such as Divenire.
+- `beatMapOf(song)` in `src/song/beatmap.ts` implements `BeatMap` for songs: constant tempo from `bpm` and
+  `gridOffset`, piecewise from `tempoMap`, `null` for free-time songs such as Divenire.
 - `quantize(tick, grid, strength)`, `quantizeNotes(notes, { grid, strength, swing, groove, keepOffset })`.
   With `keepOffset`, the distance moved is stored in `PNote.offset`, so quantizing tidies the grid
   position without discarding the feel.
 - `gridTicks(grid)` for `4 | 8 | 16 | 32 | "8t" | "16t"`; `swingOffset(tick, swing)`;
   `grooveOffset(tick, groove, meter)`.
-- **Migrate the existing callers.** `src/song/rhythm.ts`, the beat lines in `Stage.tsx`, the rhythm map
-  and the metronome in the player all compute beats as `time / (60 / bpm)`. Move them to `BeatMap`. For a
-  constant-tempo song with no offset the results must be bit-for-bit the same as today.
+- `estimateTempo(onsets)` in `src/music/tempo.ts` (contracts §8): tempo from the autocorrelation of onset
+  times, preferring 70–140 BPM when two readings an octave apart fit equally; meter from the period of the
+  accent pattern; swing from the ratio of long to short off-beat gaps. Tap the beat (Stage 4), humming
+  without a click (Stage 7), quick import (Stage 8) and free-time songs (§2.4) all use it, which is why it
+  lives here and not in any one of them.
+- **Moving Practice onto `BeatMap`** is a separate package, S2.7, because it edits files that Stage 1 and
+  S2.5 are also changing. Today `src/song/rhythm.ts` (which feeds the rhythm map, the coach and the default
+  loop), the beat lines in `Stage.tsx` and `Trimmer.tsx`, and the player's metronome all compute beats as
+  `time / (60 / bpm)`. For a constant-tempo song with no offset the results must be bit-for-bit the same
+  afterwards.
 
 ### 2.2 Theory kernel — `src/music/theory.ts`, `src/music/analysis.ts`
 
@@ -62,10 +69,12 @@ matching of interval-and-rhythm n-grams), rhythm onset pattern per bar.
   `apply` runs `applyOps` through Immer's `produceWithPatches` and pushes the inverse patches as one undo
   step. Undo depth 200. Selection, cursor and view state are *not* in the project and not undoable; they
   live in a separate UI store in Stage 3.
-- Invariants `applyOps` enforces, each with a test: ids are unique and come from `seq`; notes stay inside
-  21–108 and `dur > 0`; notes and chords are kept sorted by tick; chords never overlap; editing a note
-  whose `origin` is not `manual`, `played` or `tapped` sets `edited: true`; ops addressed to a locked
-  track are rejected unless the op itself unlocks it.
+- `applyOps` follows the rules in contracts §5, each with a test. **Refused** with an `EditError`, leaving
+  the project unchanged: an id that does not exist; a pitch outside 21–108, or a length of zero or less;
+  a chord that would overlap another; any op addressed to a locked track other than the `patchTrack` that
+  unlocks it. **Put right silently:** ids assigned from `seq`; notes and chords kept sorted by tick;
+  `lengthTicks` grown to fit; `edited: true` set when a note whose `origin` is not `manual`, `played` or
+  `tapped` is changed.
 - **Autosave:** debounce 800 ms after the last change, write `projects` and `projectMeta`; every fifth
   save also writes a `snapshots` entry, keeping the newest 20. Flush on `pagehide` and when the tab is
   hidden, the same way Practice saves its session.
@@ -79,8 +88,8 @@ Per contracts §4.
   `timeSignature`, `tempoMap` (only when tempo changes), `sections`, and `origin`.
 - `projectFromSong`: for a song with a beat grid, snap each onset to the nearest grid step and keep the
   remainder in `offset`; right-hand notes go to a Melody track and left-hand notes to a Chords track
-  (roles can be changed afterwards). For a free-time song, estimate a tempo map from inter-onset
-  intervals and mark the project so the Studio can warn that the grid is a guess; Stage 8's beat tracker
+  (roles can be changed afterwards). For a free-time song, estimate the tempo with `estimateTempo`
+  and set `source.gridGuessed`, so the Studio can warn that the grid is a guess; Stage 8's beat tracker
   later does this properly.
 - Round trip: `compileProject(projectFromSong(song))` reproduces every note of Rewrite the Stars within
   2 ms of its original start and duration.
@@ -92,11 +101,12 @@ Today `Player` owns the instruments, buses and scheduling for one song. Split it
 - **`AudioEngine`** (contracts §6), one per page: context (`latencyHint: "interactive"`), instrument
   cache, the Stage 1 hand buses and master chain, a gain strip per track, a drum bus, a click bus. It
   answers "make this sound now or at time *t*".
-- **`Player`** keeps its public surface and its scheduler exactly as they are and calls the engine
-  instead of Tone. It gains:
+- **`Player`** keeps its public surface and its scheduler exactly as they are; the engine takes the place
+  of the `Sink` Stage 0 introduced. It gains:
   - `setSong(song, { keepPosition })` — swap the song under a running or paused transport without a gap,
     so Studio can recompile after each edit;
-  - scheduling of `song.drums` and per-track mix (`trackMix`, `setTrackMix`, `solo`);
+  - scheduling of `song.drums`, per-track mix (`trackMix`, `setTrackMix`, `solo`) and a drum mix
+    (`drumMix`, `setDrumMix`);
   - a count-in: `play({ countInBars })` clicks before the range starts.
 - **Live playing:** `engine.noteOn/noteOff` sound immediately (no look-ahead) for on-screen keys, MIDI and
   auditioning. Live notes respect the sustain setting.
@@ -104,6 +114,8 @@ Today `Player` owns the instruments, buses and scheduling for one song. Split it
   every `DrumPadId`. It needs no downloads and is the fallback for every sampled kit Stage 4 adds.
 - **More sounds:** the `SoundId` list may grow (a bass, a pad, strings) for non-piano tracks; each new
   sound is a synth preset first, samples optional.
+- **Latency:** `src/audio/latency.ts` with `inputLatencyMs()` (contracts §6) — the reader only, returning 0
+  until a device is calibrated. The calibration screen that writes the value is Stage 4.
 - **Routing:** instrument (per track × hand × sound) → track strip → hand bus → master. In Practice a
   bank song has no tracks, so the path collapses to exactly what Stage 1 built.
 
@@ -122,16 +134,18 @@ Today `Player` owns the instruments, buses and scheduling for one song. Split it
 
 | Id | Deliverable | Owns | Needs |
 | --- | --- | --- | --- |
-| S2.1 | `TimeMap`, `BeatMap`, quantize, swing and groove; existing callers migrated | `src/music/time.ts`, `quantize.ts`, `src/song/rhythm.ts` | S0.4 |
+| S2.1 | `TimeMap`, `BeatMap`, quantize, swing and groove offsets, `estimateTempo` — new files only | `src/music/time.ts`, `quantize.ts`, `tempo.ts`, `src/song/beatmap.ts` | S0.4 |
 | S2.2 | Theory kernel and analysis | `src/music/theory.ts`, `analysis.ts` | S0.4 |
 | S2.3 | Project schema, `applyOps`, store with undo, autosave | `src/project/` except compile | S0.4, S2.6 for autosave |
 | S2.4 | `compileProject`, `projectFromSong`, round-trip tests | `src/project/compile.ts`, `fromSong.ts` | S2.1, S2.3 |
 | S2.5 | `AudioEngine` extraction; player on top of it; `setSong`, tracks, drums, count-in, live notes, synth kit | `src/audio/` | S1.4, S1.5 |
 | S2.6 | IndexedDB layer, catalog, export and import | `src/storage/`, `src/library/catalog.ts` | S0 |
+| S2.7 | Practice on `BeatMap`: rhythm analysis, beat lines in the waterfall and the trimmer, rhythm map, metronome | `src/song/rhythm.ts`, `src/components/Stage.tsx`, `Trimmer.tsx`, `RhythmMap.tsx`, the metronome in `src/audio/` | S2.1, S2.5, all of Stage 1 |
 
-S2.1, S2.2, S2.5 and S2.6 are independent and can run in parallel. S2.3 follows S2.6; S2.4 follows S2.1
-and S2.3. S2.5 is the only package that touches Practice's audio path and should be reviewed against the
-Stage 0 scheduling test before anything else builds on it.
+S2.1, S2.2 and S2.6 add new files only and can run in parallel with each other and with Stage 1. S2.3
+follows S2.6; S2.4 follows S2.1 and S2.3. S2.5 waits for Stage 1's audio work (S1.5) and is the package
+that rebuilds Practice's audio path: review it against the Stage 0 scheduling test before anything else
+builds on it. S2.7 comes last and is the only other package that edits Practice.
 
 ## Acceptance criteria
 
@@ -144,11 +158,13 @@ Stage 0 scheduling test before anything else builds on it.
 4. `detectChord` and `parseChord` agree on a table of 60 chords including sevenths, sus, added-tone,
    slash and altered dominants; `romanOf` is right for diatonic and common borrowed chords in major and
    minor.
-5. Every invariant in §2.3 has a failing-input test that `applyOps` rejects or repairs as specified.
+5. Every rule in §2.3 has a test: each refusal throws an `EditError` with the right code and leaves the
+   project deep-equal to before; each silent correction produces the stated result.
 6. 200 random edits followed by 200 undos return a project deep-equal to the starting project; redo
    replays to the same end state.
-7. A project edited, then the tab closed without an explicit save, reopens with the edits; a corrupted
-   stored project opens read-only with the repair prompt and the last good snapshot offered.
+7. A project edited, then the tab closed without an explicit save, reopens with the edits. Loading a
+   corrupted stored project returns a typed failure carrying the validation errors and the newest valid
+   snapshot — never a throw, never a half-valid project. (The read-only screen built on this is Stage 3.)
 8. The compile round trip in §2.4 holds for Rewrite the Stars.
 9. The Stage 0 scheduling test passes unchanged after the engine extraction; Practice's bundle grows by
    no more than 10 KB gzipped.

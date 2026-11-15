@@ -71,9 +71,11 @@ Report plainly. If a test is failing, a criterion is unmet or a step was skipped
 | What | How |
 | --- | --- |
 | Pure music logic | Vitest, with small hand-written fixtures. Prefer many tiny cases to a few large ones. |
-| Audio output | Playwright in Chromium: render with `Tone.Offline` / `OfflineAudioContext`, assert on the samples (level over a time window, silence, peak). |
+| Audio output | Playwright in Chromium: `renderOffline` from Stage 0 (`src/audio/testing.ts`), then assert on the samples — level over a time window, silence, peak. |
+| What the player schedules | A recording `Sink` (contracts §6) installed through `window.__app`; assert on the calls. |
 | Timing and latency | Record timestamps in the page and assert on the differences; never assert on wall-clock sleeps. |
-| Canvas editors | Drive real pointer events in Playwright, then assert on the project state the store exposes on `window.__studio` in test builds; screenshots only for a few visual baselines. |
+| Canvas editors | Drive real pointer events in Playwright, then assert on the project and UI state exposed on `window.__app` in test builds; screenshots only for a few visual baselines. |
+| "On a mid-range phone" | Two checks. The agent measures in Chromium at 390 × 844 with the CPU throttled four times (`Emulation.setCPUThrottlingRate` over the DevTools protocol) and reports the numbers. The owner then tries the feature on a real phone at the next milestone; a stage's flag does not come off until they have. |
 | Microphone features | Chromium's `--use-fake-device-for-media-stream --use-file-for-fake-audio-capture=<wav>` with fixture recordings. |
 | ML quality | A fixture set with known answers and a scored metric (note F-measure, chord accuracy). The threshold lives in the stage document. |
 | Language-model features | Recorded request/response fixtures for unit tests; a separate eval script that calls the real API, run on request because it costs money. |

@@ -14,9 +14,9 @@ it, a change that breaks Practice fails a check instead of reaching the music st
 
 ## Scope
 
-**In:** test tooling and CI; tests that pin down how the app behaves today; hash router and lazy route
-chunks; feature flags; an error boundary; contract types as code; the pure-zone compiler check; a
-`CLAUDE.md` for future build sessions.
+**In:** test tooling and CI; an audio test harness; tests that pin down how the app behaves today; hash
+router and lazy route chunks; feature flags; an error boundary; contract types as code; the pure-zone
+compiler check; a `CLAUDE.md` for future build sessions.
 
 **Out:** any new feature, any visual change to Practice, any dependency major upgrade.
 
@@ -48,13 +48,32 @@ Before anything is refactored, tests record what the app does now. These are the
 - **Practice smoke test (Playwright):** open a song, press play, confirm the playhead advances, set a
   loop from a section, confirm it wraps, step forward two moments, change speed, reload and confirm the
   position, loop and speed come back.
-- **Scheduling test (Playwright):** with a three-note fixture song, record the times the player asks the
-  engine to sound each note at 100% and 50% speed and across a loop wrap; assert they are right to within
-  5 ms. This is the test that protects the scheduler through Stage 1 and Stage 2.
+- **Scheduling test (Playwright):** with a three-note fixture song and a recording sink (below), collect
+  the time the player asks for each note at 100% and 50% speed and across a loop wrap; assert they are
+  right to within 5 ms. This is the test that protects the scheduler through Stage 1 and Stage 2.
 
 Test builds expose `window.__app = { player }` (later also `store`) so Playwright can read state without
 scraping the canvas. The hook exists only when `import.meta.env.MODE !== "production"` or the
 `test-hooks` flag is on.
+
+### Audio test harness
+
+Later stages have acceptance criteria about timing and about sound, and today neither can be asserted:
+`Player` calls Tone instruments directly on Tone's global context and schedules from a `setInterval`.
+Two small pieces fix that.
+
+- **The sink seam.** Introduce the `Sink` interface (contracts §6) and have `Player` call a sink for
+  every note and click rather than an instrument. The default sink is today's instruments and channels,
+  moved behind the interface with no change in behaviour. A test installs a recording sink through
+  `window.__app` and reads back pitch, time, duration and hand for every call. This is the only change
+  to `player.ts` in Stage 0, and the seam is what Stage 2 grows into the `AudioEngine`.
+- **Offline render.** `renderOffline(song, { sound, seconds })` in `src/audio/testing.ts` (Stage 1 adds
+  `mix` and `sustain` to its options) builds the same instruments and buses inside `Tone.Offline`, schedules every note of the song straight
+  through the sink — the real-time loop cannot run offline — and returns the samples. Helpers beside it
+  measure level over a time window (RMS, in dBFS), peak, and the largest jump between neighbouring
+  samples. Stage 1's volume, mute, sustain and limiter criteria are written against these.
+
+The scheduling test covers *when*; the offline render covers *what it sounds like*.
 
 ### App shell
 
@@ -76,6 +95,9 @@ scraping the canvas. The hook exists only when `import.meta.env.MODE !== "produc
 - Extend `src/song/types.ts` to the v2 `Song` and `SongIndexEntry` (contracts §2). `normalize()` accepts
   `"piano-song/v1"` and `"piano-song/v2"`. No behaviour change: the new fields are optional and nothing
   reads them yet.
+- Two moves so that `src/song/` can join the pure zone: `SoundId` goes from `src/audio/player.ts` to
+  `src/song/types.ts` (the player re-exports it), and `normalize` goes from `src/song/load.ts`, which
+  fetches, to its own `src/song/normalize.ts`.
 - Add `src/project/types.ts` and `src/assist/core/types.ts` with the types from contracts §3, §5 and §7,
   and `src/music/time.ts` with `PPQ` and the `TimeMap` interface. Types only; implementations arrive in
   Stage 2.
@@ -101,12 +123,15 @@ scraping the canvas. The hook exists only when `import.meta.env.MODE !== "produc
 | Id | Deliverable | Owns | Needs |
 | --- | --- | --- | --- |
 | S0.1 | Vitest, Playwright, ESLint, Prettier, CI workflow, scripts | `package.json`, config files, `.github/` | — |
-| S0.2 | Tests pinning today's behaviour, including the smoke and scheduling tests; the `window.__app` hook | `*.test.ts`, `e2e/` | S0.1 |
+| S0.2 | Tests pinning today's behaviour, including the smoke and scheduling tests; the `window.__app` hook | `*.test.ts`, `e2e/` | S0.1; S0.6 for the scheduling test |
 | S0.3 | Router, legacy redirect, lazy routes, error boundary, flags | `src/app/`, `src/App.tsx`, `src/main.tsx` | S0.1 |
 | S0.4 | Contract types as code; pure-zone `tsconfig` and lint rule | `src/song/types.ts`, `src/project/types.ts`, `src/assist/core/types.ts`, `src/music/time.ts` | S0.1 |
 | S0.5 | `CLAUDE.md`, README update, sample credits | docs, a credits link in `src/app/` | S0.1–S0.4 |
+| S0.6 | The `Sink` seam in the player; `renderOffline` and its measuring helpers; one example test of each kind | `src/audio/player.ts` (the seam only), `src/audio/testing.ts`, `e2e/audio/` | S0.1 |
 
-S0.2, S0.3 and S0.4 touch different files and can run in parallel once S0.1 has merged.
+S0.2, S0.3, S0.4 and S0.6 touch different files and can run in parallel once S0.1 has merged; S0.2's
+scheduling test waits for S0.6. S0.4 and S0.6 both touch `player.ts` lightly (a moved type, the seam):
+land S0.4 first.
 
 ## Acceptance criteria
 
@@ -120,6 +145,9 @@ S0.2, S0.3 and S0.4 touch different files and can run in parallel once S0.1 has 
 7. A file in `src/music/` that imports `react` or reads `window` fails `npm run typecheck` or `npm run lint`.
 8. `CLAUDE.md` exists and its commands work as written.
 9. The piano samples are credited in the README and reachable from the app.
+10. An offline render of a one-note fixture returns samples whose level in the note's first 100 ms is
+    within 1 dB across ten runs, and the recording sink reports the same three calls for the three-note
+    fixture on every run.
 
 ## Risks
 
