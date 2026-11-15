@@ -3,7 +3,7 @@
 Synthesia-style piano tutorials for learning specific songs.
 
 - **Falling notes** over a piano keyboard, colour-coded by hand (green = right, blue = left).
-- **Speed control** from 25% to 150%. Tempo changes, pitch doesn't.
+- **Speed control** from 5% to 200%. Tempo changes, pitch doesn't.
 - **Loop any passage** with an iPhone-clipper-style trimmer: drag the yellow
   handles over the song overview, or tap a section to loop it.
 - **Skip ±5 s of listening time**: at 50% speed a skip moves 2.5 s of song.
@@ -23,7 +23,15 @@ Keyboard: `Space` play/pause · `←/→` skip · `↑/↓` speed · `,`/`.` ste
 npm install
 npm run dev        # http://localhost:5173
 npm run build      # type-check + production build to dist/
+npm run check      # typecheck, lint, unit tests, build and browser tests
 ```
+
+`npm test` runs the unit tests (Vitest). `npm run test:e2e` runs the browser tests (Playwright) against
+the built app; the first time, run `npx playwright install chromium`. Both run in GitHub Actions on
+every push. Conventions for working in this repository are in [CLAUDE.md](CLAUDE.md).
+
+Addresses are in the hash: `#/play/rewrite-the-stars` opens a song. Links from before that
+(`#rewrite-the-stars`) still work.
 
 ## Songs
 
@@ -50,13 +58,23 @@ humming, and import from audio). Start with its README.
 
 ```
 src/
-  audio/player.ts        # Web Audio scheduler: play/pause/seek, speed, looping
+  app/                   # routes, feature flags, error boundary, test hooks
+  audio/player.ts        # scheduler: play/pause/seek, speed, looping
+  audio/voices.ts        # the instruments and hand channels
+  audio/testing.ts       # test harness: record what is scheduled, render to samples
   components/Stage.tsx   # falling notes + keyboard (canvas)
   components/Trimmer.tsx # loop trimmer / timeline
   components/Practice.tsx# controls and layout
-  song/                  # song format types and loader
+  song/                  # song format types, loader, rhythm analysis
+  music/ project/ assist/# shared types for the studio (see docs/plan)
+e2e/                     # browser tests
 public/songs/            # song data
 scripts/midi-to-song.mjs # MIDI → song JSON
 ```
 
-Piano sound: Salamander Grand Piano samples via Tone.js, with a synth fallback.
+## Credits
+
+The "Grand piano" sound is the Salamander Grand Piano by Alexander Holm, used under the
+[Creative Commons Attribution 3.0](https://creativecommons.org/licenses/by/3.0/) licence, in the edition
+published with [Tone.js](https://github.com/Tonejs/audio). The other sounds are synthesized. The app
+shows the same credit at `#/credits`.

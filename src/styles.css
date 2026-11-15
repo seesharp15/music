@@ -43,6 +43,16 @@ button { font: inherit; color: inherit; }
   border-radius: 8px; padding: 6px 10px; max-width: 60vw;
 }
 
+.app-footer { padding: 10px 16px 14px; text-align: center; font-size: 0.75rem; }
+.app-footer a { color: var(--muted); }
+a.brand { color: inherit; text-decoration: none; }
+.credits { width: 100%; max-width: 640px; margin: 0 auto; padding: 16px; flex: 1; line-height: 1.55; }
+.credits h1 { font-size: 1.25rem; font-weight: 650; margin: 0 0 12px; }
+.credits h2 { font-size: 0.95rem; font-weight: 650; margin: 20px 0 4px; }
+.credits p { margin: 0 0 10px; color: var(--muted); }
+.credits a { color: var(--accent); }
+.credits strong { color: var(--text); font-weight: 600; }
+
 .message { padding: 40px 16px; text-align: center; color: var(--muted); }
 .message a, .link-btn { color: var(--accent); }
 .message-detail { font-size: 0.85rem; opacity: 0.8; overflow-wrap: anywhere; }

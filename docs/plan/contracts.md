@@ -771,6 +771,7 @@ Hash routes, so the app keeps working on any static host and old links survive.
 | `#/studio/:projectId` | Studio | 3 |
 | `#/import` | Import from audio | 8 |
 | `#/settings` | Storage and backup (Stage 3), latency calibration (4), access code (6) | 3 |
+| `#/credits` | Credits and licences for samples, models and libraries | 0 |
 | `#<songId>` (legacy) | Redirects to `#/play/<songId>` | 1 |
 
 Flags let unfinished stages merge without showing: `studio`, `drums`, `assist`, `assist-ai`, `hum`,
