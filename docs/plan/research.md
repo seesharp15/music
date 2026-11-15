@@ -19,7 +19,11 @@ repository, on that date. **partly** — the code and package were checked but s
 
 ## A. Audio to notes (server)
 
-Used by Stage 8. The headline: **few strong models have commercially clean weights.** Permissive code
+Used by Stage 8. The owner has since decided that licences are not to restrict the build while it is for
+personal use (README §9), so Stage 8 uses non-commercial engines where they are better; the classes
+recorded here are what a later commercial audit would read.
+
+The headline: **few strong models have commercially clean weights.** Permissive code
 often ships with weights that are non-commercial, unlicensed, or trained on the MAESTRO piano dataset,
 which is itself CC BY-NC-SA. The clearly clean set is small: Beat This!, lv-chordia, SwiftF0, Basic
 Pitch, midi2hands, MSAF, music21.

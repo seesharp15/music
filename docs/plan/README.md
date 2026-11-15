@@ -1,6 +1,6 @@
 # Piano Tutor → Library, Practice and Studio: the build plan
 
-**Status:** proposed, awaiting the owner's review · **Written:** 15 November 2026
+**Status:** under review by the owner; decisions so far are recorded in §9 · **Written:** 15 November 2026
 
 This folder is the plan and specification for growing Piano Tutor from a practice player into a place to
 find songs, practise them, and write new ones — by hand, with an assistant that keeps the author in
@@ -42,7 +42,7 @@ are yours. Then open any stage whose detail you want to check.
 | "AI"-powered assistant | [6](06-assist-ai.md) |
 | Hum a melody and have it transcribed into the builder | [7](07-hum-to-notes.md) |
 | A drum-pad instrument, to add parts and to set the beat and timing | [4](04-drum-pads.md) |
-| Feed in audio or a YouTube link and get an arrangement | [8](08-audio-import.md) |
+| Feed in audio or a YouTube link and get an arrangement | [8](08-audio-import.md): files and "record this tab"; paste-a-link deferred by the owner |
 | Full-featured, cutting-edge technology | Section 5 below; [research.md](research.md) |
 | A staged plan for a team of agents or a single agent | Sections 6 and 7 below |
 
@@ -135,7 +135,7 @@ The decisions that hold this together:
 | **Local suggestions first, language model second, one tray.** | Instant and offline by default; the model adds range and takes direction in words. |
 | **Language models place notes on an explicit grid and never do duration arithmetic**; everything they return is validated and repaired or dropped. | Their measured weakness is exactly bar arithmetic. |
 | **Python does inference only; all musical post-processing is TypeScript, run in the browser.** | One implementation of quantizing, key finding, hand splitting and arranging, shared by import, humming and the editor; and an import can be re-arranged later without another server job. |
-| **Clean-licence components by default; every model labelled with a licence class.** | Most strong audio models have non-commercial or unclear weights; this keeps the question answerable later. |
+| **The best engine for each job, every one labelled with its licence class.** | The owner's decision: personal use now, so licences do not restrict the build. Most strong audio models have non-commercial or unclear weights; the labels, and a switch that excludes the non-commercial ones, keep a later commercial audit simple. |
 | **In-browser models run as single-threaded WebAssembly in a Worker; nothing depends on WebGPU.** | It is what works on an iPhone today. |
 | **Local-first storage; the app is installable.** | No accounts to build. Installing matters because Safari may evict a site's stored data after a week unused. |
 | **Hash routes, feature flags, no major-version upgrades inside feature work.** | Static hosting keeps working; unfinished stages merge unseen; fewer moving parts. |
@@ -166,7 +166,7 @@ Every pick, its licence, its fallback and how far it was verified is in [researc
 | 5 | [Assist I: on the device](05-assist-local.md) | Key hints; the Ideas tray; melody, chord, bass and accompaniment options; evolve; coach; authorship view | no | large | 9 |
 | 6 | [Assist II: the co-writer](06-assist-ai.md) | Claude as a second idea source; direction in words; critique; conversation; the brief | **yes** | large | 7 |
 | 7 | [Hum it](07-hum-to-notes.md) | Voice to notes with a review screen | no | medium | 6 |
-| 8 | [From a recording](08-audio-import.md) | Audio (and optionally YouTube) to an editable arrangement, with review against the original | **yes, with GPU** | very large | 10 |
+| 8 | [From a recording](08-audio-import.md) | Audio to an editable arrangement, with review against the original | **yes, with GPU** | very large | 10 (one deferred) |
 | 9 | [Finishing and growing](09-polish.md) | Full offline use, pedalling as written, exports, a bigger library, audits; backlog | — | per package | 8 |
 
 Sizes are relative to each other, not estimates of time.
@@ -247,15 +247,22 @@ everything else waits on it.
 
 ## 9. Decisions that are the owner's
 
+### Decided (15 November 2026)
+
+| # | Question | Decision | What follows |
+| --- | --- | --- | --- |
+| 1 | Is this project commercial, or might it become so? | **Personal use now, possibly commercial later — and licences are not to restrict the build.** | Stage 8 uses the best engine for each step whatever its licence class. Every engine is still labelled with its class, and one switch excludes the non-commercial ones, so going commercial later is an audit of a table and not a rebuild. |
+| 2 | Is running a server and paying per use acceptable? | **Yes.** | Stages 6 and 8 are in. Their cost estimates (5–10 US cents a co-writer request, a few cents an import) are still to be measured; the daily budgets stay as the guard. |
+| 3 | YouTube links | **Paste-a-link waits for a later change.** | S8.10 stays specified but is not part of this build. File upload and "record this tab" are. |
+| 5 | Editor orientation | **Vertical**, like Practice. | Stage 3 as written. A sideways view remains a later option (Stage 9). |
+
+### Still open
+
 Each has a default the plan assumes unless told otherwise.
 
 | # | Question | Default assumed | What it changes |
 | --- | --- | --- | --- |
-| 1 | **Is this project commercial, or might it become so?** | Personal, non-commercial | Which audio models Stage 8 may use. Several of the best have non-commercial or unclear weights. |
-| 2 | **Is running a server and paying per use acceptable?** Stage 6 calls Claude (estimated 5–10 US cents a request); Stage 8 rents a GPU by the second (estimated a few cents an import). Both estimates are to be measured. | Yes, from Stage 6 on; Stages 0–5 and 7 cost nothing to run | Whether Stages 6 and 8 are built. |
-| 3 | **YouTube links.** You asked for these. Fetching the audio from a server is against YouTube's terms and technically fragile (Stage 8 explains). | "Record this tab" is built with the import screen; paste-a-link is built last, once you confirm you still want it | S8.10 only. |
-| 4 | **"L/R sound toggle"** — taken to mean the Left / Right chips that cycle On / Soft / Off, not the Stereo split chip. | The hand chips | The UI in S1.4. |
-| 5 | **Editor orientation** — a vertical waterfall like Practice, not a sideways piano roll. | Vertical | Stage 3's whole look; a sideways view is a later option. |
+| 4 | **"L/R sound toggle"** — taken to mean the Left / Right chips in the Hands panel that cycle On / Soft / Off, each becoming a volume slider with a mute button. The other candidate is the "Stereo split" chip (left hand in the left ear), which the plan leaves alone. | The hand chips | The UI in S1.4. |
 | 6 | **Which Claude model.** | `claude-opus-5-5`, set in configuration | Cost, speed and quality of the co-writer; a smaller model is a trade you may choose. |
 | 7 | **Who may use the paid features.** | A shared access code, no accounts | S6.1. |
 | 8 | **Where songs live.** | On the device, with export and backup; cloud accounts in the backlog | Whether a database and sign-in get built. |
@@ -264,7 +271,7 @@ Each has a default the plan assumes unless told otherwise.
 
 ## 10. Things worth knowing before you say yes
 
-- **It is a lot.** About seventy-five work packages, and several times the size of the current codebase.
+- **It is a lot.** Seventy-four work packages, and several times the size of the current codebase.
   Each stage is useful on its own, so it can stop after any milestone and still have been worth doing.
 - **Editing music on a phone is the hardest design problem here**, harder than any of the machine
   learning. Stage 3 budgets for iteration with you.
