@@ -1,0 +1,15 @@
+{
+  "format": "piano-song/v1",
+  "id": "three-notes",
+  "title": "Three Notes",
+  "artist": "Fixture",
+  "bpm": 120,
+  "timeSignature": [4, 4],
+  "duration": 3,
+  "sections": [{ "name": "All", "start": 0, "end": 3 }],
+  "notes": [
+    { "pitch": 60, "time": 0.5, "duration": 0.4, "hand": "R", "velocity": 0.8 },
+    { "pitch": 48, "time": 1.0, "duration": 0.4, "hand": "L", "velocity": 0.8 },
+    { "pitch": 64, "time": 1.5, "duration": 0.4, "hand": "R", "velocity": 0.8 }
+  ]
+}
