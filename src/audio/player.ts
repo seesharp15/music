@@ -1,5 +1,7 @@
 import * as Tone from "tone";
-import type { Hand, Note, Song } from "../song/types";
+import type { Hand, Note, Song, SoundId } from "../song/types";
+
+export type { SoundId };
 
 const LOOKAHEAD = 0.15; // seconds of real time scheduled ahead
 const TICK_MS = 25;
@@ -40,7 +42,6 @@ const SAMPLE_NOTES = [
   "C8",
 ];
 
-export type SoundId = "clear" | "soft" | "epiano" | "bright" | "piano";
 export type HandLevel = "on" | "soft" | "off";
 
 export const SOUNDS: { id: SoundId; label: string }[] = [
