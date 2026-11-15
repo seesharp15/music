@@ -127,7 +127,8 @@ export function Stage({ song, player, levels, rhythm, syncLines, keys }: Props) 
           halfTo = coverAt(centreTo);
         }
         const cover = coverAt(centreTo);
-        if (cover > halfTo) halfTo = cover; // grow around the still middle
+        if (cover > halfTo)
+          halfTo = cover; // grow around the still middle
         else if (halfTo - cover > SHRINK_AT) halfTo = cover + SHRINK_AT / 2; // narrow, once, with room to spare
         moveTau = MOVE_TAU;
         halfTau = halfTo > half ? GROW_TAU : SHRINK_TAU;

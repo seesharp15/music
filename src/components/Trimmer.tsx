@@ -407,7 +407,8 @@ export function Trimmer({ song, player, loop, clears }: Props) {
     if (!run) next = [k, k];
     else {
       const [i, j] = run;
-      if (k < i) next = [k, j]; // reaching outward takes in everything between
+      if (k < i)
+        next = [k, j]; // reaching outward takes in everything between
       else if (k > j) next = [i, k];
       else if (i === j) next = null;
       else next = [k, k]; // tapping inside a run narrows it to just that section
@@ -450,12 +451,7 @@ export function Trimmer({ song, player, loop, clears }: Props) {
             className="trimmer-frame"
             style={{ left: `${clamp(startPct, 0, 100)}%`, right: `${clamp(100 - endPct, 0, 100)}%` }}
           >
-            <div
-              className="trimmer-handle is-start"
-              data-handle="start"
-              aria-label="Loop start"
-              hidden={startPct < 0}
-            >
+            <div className="trimmer-handle is-start" data-handle="start" aria-label="Loop start" hidden={startPct < 0}>
               <span />
             </div>
             <div className="trimmer-handle is-end" data-handle="end" aria-label="Loop end" hidden={endPct > 100}>
@@ -495,7 +491,10 @@ export function Trimmer({ song, player, loop, clears }: Props) {
         {loop.enabled && (
           <div
             className="trimmer-map-loop"
-            style={{ left: `${(loop.start / duration) * 100}%`, width: `${((loop.end - loop.start) / duration) * 100}%` }}
+            style={{
+              left: `${(loop.start / duration) * 100}%`,
+              width: `${((loop.end - loop.start) / duration) * 100}%`,
+            }}
           />
         )}
         <div
@@ -504,7 +503,11 @@ export function Trimmer({ song, player, loop, clears }: Props) {
         />
         {sections.map((s) =>
           s.start > 0 ? (
-            <div key={s.name + s.start} className="trimmer-map-tick" style={{ left: `${(s.start / duration) * 100}%` }} />
+            <div
+              key={s.name + s.start}
+              className="trimmer-map-tick"
+              style={{ left: `${(s.start / duration) * 100}%` }}
+            />
           ) : null,
         )}
         <div ref={mapHeadRef} className="trimmer-map-head" />

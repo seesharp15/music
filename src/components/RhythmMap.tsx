@@ -95,9 +95,7 @@ export function RhythmMap({ player, rhythm, levels, duration }: Props) {
                       cellRefs.current[ci] = el;
                     }}
                     className={`rhythm-cell ${both ? "is-sync" : ""} ${onBeat ? "on-beat" : ""}`}
-                    onClick={() =>
-                      c.momentTime != null ? void player.strikeAt(c.momentTime) : player.seek(c.time)
-                    }
+                    onClick={() => (c.momentTime != null ? void player.strikeAt(c.momentTime) : player.seek(c.time))}
                     title={describe(c)}
                     aria-label={`Bar ${bar + b + 1}, count ${countLabel(rhythm, i)}: ${describe(c)}`}
                   >
