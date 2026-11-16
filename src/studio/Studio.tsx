@@ -3,7 +3,9 @@ import { ConfirmDialog, PromptDialog } from "../app/ui/Dialog";
 import { Menu } from "../app/ui/Menu";
 import { exposeStudio } from "../app/testHooks";
 import { exportProject } from "../storage";
-import { SessionContext, useProject, useSession, useStoreState, useUi } from "./context";
+import { EditorCanvas } from "./EditorCanvas";
+import { ViewMenu } from "./ViewMenu";
+import { SessionContext, useSession, useStoreState, useUi } from "./context";
 import { FirstRun } from "./FirstRun";
 import { duplicateProject, removeProject, studioHref } from "./projects";
 import type { Session } from "./session";
@@ -26,7 +28,8 @@ export function Studio({ session, banner }: { session: Session; banner?: React.R
         {banner}
         <div className="studio-main">
           <div className="studio-editor">
-            <EditorArea />
+            <EditorCanvas />
+            <ViewMenu />
             <FirstRun />
           </div>
           <Sheet id="settings" title="Song settings">
@@ -41,18 +44,6 @@ export function Studio({ session, banner }: { session: Session; banner?: React.R
         <LiveRegion />
       </div>
     </SessionContext.Provider>
-  );
-}
-
-/** Stands in for the editor canvas until S3.2 puts it here. */
-function EditorArea() {
-  const project = useProject();
-  return (
-    <div className="editor-placeholder">
-      <p>
-        {project.tracks.length} tracks · {project.tempo[0].bpm} BPM
-      </p>
-    </div>
   );
 }
 

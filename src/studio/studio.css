@@ -79,3 +79,24 @@
 .damaged-errors { margin: 0; padding-left: 20px; color: var(--muted); font-size: 0.875rem; overflow-wrap: anywhere; }
 .damaged-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .damaged-failed { color: #ff8a80 !important; }
+
+/* The editor canvas and what floats over it. */
+.editor-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; outline: none; }
+.view-menu { position: absolute; top: 6px; right: 6px; z-index: 4; }
+.view-btn {
+  display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
+  border: 1px solid var(--border); background: rgba(21, 24, 32, 0.85); color: var(--muted);
+}
+.view-btn[aria-expanded="true"] { color: var(--text); border-color: #4b5263; }
+.view-panel {
+  position: absolute; right: 0; top: 50px; width: 216px; padding: 10px; display: flex; flex-direction: column; gap: 8px;
+  border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+.view-row { display: flex; align-items: center; gap: 6px; }
+.view-row > span { flex: 1; font-size: 0.85rem; color: var(--muted); }
+.view-row .chip { flex: 1; justify-content: center; height: 44px; }
+.view-step {
+  width: 48px; height: 44px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-size: 1.05rem;
+}
+.view-check { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 0.9rem; cursor: pointer; }
+.view-check input { width: 20px; height: 20px; accent-color: var(--accent); }

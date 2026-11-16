@@ -161,7 +161,10 @@ function withoutOverlaps(notes: Note[]): Note[] {
 }
 
 /** Every drum hit of a track, in ticks: its free hits, and its patterns laid out clip by clip. */
-function expandDrums(track: DrumTrack, time: TimeMap): { pad: DrumPadId; tick: number; vel: number; offset: number }[] {
+export function expandDrums(
+  track: DrumTrack,
+  time: TimeMap,
+): { pad: DrumPadId; tick: number; vel: number; offset: number }[] {
   const out = track.hits.map((h) => ({ pad: h.pad, tick: h.tick, vel: h.vel, offset: h.offset ?? 0 }));
   for (const clip of track.clips) {
     const pattern = track.patterns.find((x) => x.id === clip.patternId);

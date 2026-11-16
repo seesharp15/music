@@ -5,6 +5,8 @@
 import { createProjectStore, type ProjectStoreHandle } from "../project/store";
 import type { Project } from "../project/types";
 import { kvGet, kvSet, projectPersistence } from "../storage";
+import type { Editor } from "./editor";
+import { createPlayback, type Playback } from "./playback";
 import { noteClosing, studioKey } from "./projects";
 import { createUiStore, sanitizeSavedUi, savedUiOf, type SavedUi, type UiStore } from "./ui-store";
 
@@ -12,6 +14,10 @@ export interface Session {
   projectId: string;
   store: ProjectStoreHandle;
   ui: UiStore;
+  /** The project as sound: the player, and notes played by hand. */
+  playback: Playback;
+  /** The canvas's controller, while the canvas is on screen. */
+  editor: Editor | null;
   /** Nothing can be changed: the project on screen is a restore point being looked at. */
   readOnly: boolean;
   /** Save what is unsaved, then stop saving and listening. */
@@ -92,16 +98,21 @@ export function openSession(project: Project, savedUi: unknown, opts: { readOnly
     document.addEventListener("visibilitychange", onVisibility);
   }
 
+  const playback = createPlayback({ store, ui });
+
   return {
     projectId: project.id,
     store,
     ui,
+    playback,
+    editor: null,
     readOnly,
     close() {
       unsubscribe();
       window.removeEventListener("pagehide", leaving);
       window.removeEventListener("beforeunload", leaving);
       document.removeEventListener("visibilitychange", onVisibility);
+      playback.dispose();
       const done = Promise.all([write(), store.flush()]).then(() => store.dispose());
       noteClosing(done);
       return done;
