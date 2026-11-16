@@ -1,3 +1,4 @@
+import { beatMapOf, isDownbeat, type BeatMap } from "../song/beatmap";
 import type { DrumPadId, Hand, Note, Song, SoundId } from "../song/types";
 import { sharedEngine, type Engine, type PianoStatus } from "./engine";
 import { defaultMix, FULL, sanitizeMix, type Mix } from "./mix";
@@ -80,6 +81,8 @@ export class Player {
   private engine: Engine;
   private clock: Clock;
   private stopListeningToPiano: () => void;
+  /** Where the song's beats fall: what the metronome and the count-in click to. Null in free time. */
+  private beats: BeatMap | null = null;
   /** The song's drum hits in time order, and the sound each of its tracks plays. */
   private hits: DrumHit[] = [];
   private trackSound = new Map<string, SoundId | undefined>();
@@ -200,9 +203,12 @@ export class Player {
     this.scheduledUpTo = t;
     this.counting = null;
     const bars = Math.max(0, Math.floor(opts.countInBars ?? 0));
-    if (bars > 0 && this.song.bpm) {
-      const perBar = this.song.timeSignature?.[0] ?? 4;
-      const beat = 60 / this.song.bpm / this._state.rate;
+    const beats = this.beats;
+    if (bars > 0 && beats) {
+      const perBar = beats.beatsPerBar;
+      // The length of the beat playback starts in: under a tempo map, the tempo of that place.
+      const here = Math.floor(beats.beatAt(t) + 1e-9);
+      const beat = (beats.secondsAt(here + 1) - beats.secondsAt(here)) / this._state.rate;
       this.counting = { start: this.anchorCtx, beat, perBar, total: bars * perBar, next: 0 };
       this.anchorCtx += bars * perBar * beat;
     }
@@ -365,6 +371,7 @@ export class Player {
       trackMix[t.id] = clean({ volume: t.volume ?? 1, muted: before[t.id]?.muted ?? false });
     }
     this.hits = [...(song.drums?.hits ?? [])].sort((a, b) => a.time - b.time);
+    this.beats = beatMapOf(song);
     const drumMix = clean({
       volume: song.drums?.volume ?? this._state.drumMix.volume,
       muted: this._state.drumMix.muted,
@@ -539,11 +546,10 @@ export class Player {
       }
     }
 
-    if (this._state.metronome && this.song.bpm) {
-      const beat = 60 / this.song.bpm;
-      const perBar = this.song.timeSignature?.[0] ?? 4;
-      for (let b = Math.ceil(this.scheduledUpTo / beat - 1e-6); b * beat < windowEnd; b++) {
-        this.sink.click(b % perBar === 0, toCtx(b * beat));
+    const beats = this.beats;
+    if (this._state.metronome && beats) {
+      for (let b = Math.ceil(beats.beatAt(this.scheduledUpTo) - 1e-6); beats.secondsAt(b) < windowEnd; b++) {
+        this.sink.click(isDownbeat(b, beats.beatsPerBar), toCtx(beats.secondsAt(b)));
       }
     }
     this.scheduledUpTo = windowEnd;

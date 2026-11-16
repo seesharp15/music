@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { LoopRange, Player } from "../audio/player";
-import type { Rhythm } from "../song/rhythm";
+import { barsFrom, type Rhythm } from "../song/rhythm";
 import type { Hand } from "../song/types";
 
 interface Stage {
@@ -68,9 +68,8 @@ export function Coach({ player, rhythm, loop, syncLines, onSyncLines }: Props) {
   const startRoutine = (stage = 0) => {
     if (!player.state.loop.enabled) {
       // Default to the two bars around the playhead.
-      const barLen = rhythm.beat * rhythm.perBar;
-      const start = Math.floor(player.currentTime() / barLen) * barLen;
-      player.setLoop({ enabled: true, start, end: Math.min(start + 2 * barLen, player.duration) });
+      const { start, end } = barsFrom(rhythm, player.currentTime(), 2);
+      player.setLoop({ enabled: true, start, end: Math.min(end, player.duration) });
     }
     const { mix } = player.state;
     mutedBefore.current ??= { L: mix.L.muted, R: mix.R.muted };

@@ -53,3 +53,8 @@ export function beatMapOf(song: Pick<Song, "bpm" | "timeSignature" | "gridOffset
     beatsPerBar,
   };
 }
+
+/** Whether beat `b` (a whole number, possibly negative before the first downbeat) starts a bar. */
+export function isDownbeat(b: number, beatsPerBar: number): boolean {
+  return ((b % beatsPerBar) + beatsPerBar) % beatsPerBar === 0;
+}

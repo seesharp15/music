@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { lookOf } from "../audio/mix";
 import type { Mix, Player } from "../audio/player";
-import { countLabel, type Rhythm } from "../song/rhythm";
+import { barAt, cellAt, cellTime, countLabel, type Rhythm } from "../song/rhythm";
 import type { Hand } from "../song/types";
 
 interface Props {
@@ -25,9 +25,8 @@ interface Cell {
  * together are marked as sync points.
  */
 export function RhythmMap({ player, rhythm, mix, duration }: Props) {
-  const barLen = rhythm.beat * rhythm.perBar;
   const cellsPerBar = rhythm.perBar * rhythm.sub;
-  const lastBar = Math.max(0, Math.floor(duration / barLen));
+  const lastBar = Math.max(0, Math.floor(barAt(rhythm, duration)));
   const [bar, setBar] = useState(0); // zero-based first bar shown
   const cellRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -35,7 +34,7 @@ export function RhythmMap({ player, rhythm, mix, duration }: Props) {
   const byCell = useMemo(() => {
     const map = new Map<number, { hands: Set<Hand>; time: number }>();
     for (const m of rhythm.moments) {
-      const idx = Math.round(m.time / rhythm.cell);
+      const idx = Math.round(cellAt(rhythm, m.time));
       const c = map.get(idx);
       if (c) m.hands.forEach((h) => c.hands.add(h));
       else map.set(idx, { hands: new Set(m.hands), time: m.time });
@@ -47,7 +46,7 @@ export function RhythmMap({ player, rhythm, mix, duration }: Props) {
   for (let i = 0; i < cellsPerBar * BARS_SHOWN; i++) {
     const idx = bar * cellsPerBar + i;
     const c = byCell.get(idx);
-    cells.push({ time: idx * rhythm.cell, hands: c?.hands ?? new Set(), momentTime: c?.time ?? null });
+    cells.push({ time: cellTime(rhythm, idx), hands: c?.hands ?? new Set(), momentTime: c?.time ?? null });
   }
 
   // Follow playback: page to the bar under the playhead, highlight the cell.
@@ -57,9 +56,9 @@ export function RhythmMap({ player, rhythm, mix, duration }: Props) {
     const frame = () => {
       raf = requestAnimationFrame(frame);
       const t = player.currentTime();
-      const b = Math.min(lastBar, Math.max(0, Math.floor((t + 1e-3) / barLen)));
+      const b = Math.min(lastBar, Math.max(0, Math.floor(barAt(rhythm, t + 1e-3))));
       setBar(b);
-      const idx = Math.floor((t + 1e-3) / rhythm.cell) - bar * cellsPerBar;
+      const idx = Math.floor(cellAt(rhythm, t + 1e-3)) - bar * cellsPerBar;
       if (idx !== active) {
         cellRefs.current[active]?.classList.remove("is-now");
         cellRefs.current[idx]?.classList.add("is-now");
@@ -71,7 +70,7 @@ export function RhythmMap({ player, rhythm, mix, duration }: Props) {
       cancelAnimationFrame(raf);
       cellRefs.current[active]?.classList.remove("is-now");
     };
-  }, [player, rhythm, bar, barLen, cellsPerBar, lastBar]);
+  }, [player, rhythm, bar, cellsPerBar, lastBar]);
 
   return (
     <div className="rhythm" aria-label="Rhythm map: which hand plays on each count">

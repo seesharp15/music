@@ -39,9 +39,21 @@ npm run format       # apply Prettier
 ## Things worth knowing
 
 - End-to-end tests open the app as `/?flags=test-hooks#/…` and reach it through `window.__app`
-  (`src/app/testHooks.ts`).
+  (`src/app/testHooks.ts`): `.player`, `.testing()` for the audio harness, `.kit()` for projects,
+  the store, storage and the catalog (no audio code, so it also loads in WebKit).
+- The audio harness has three tools: `recordSink`, `renderOffline`, and `renderPlayed`, which runs the
+  real player offline on a stepped clock. In an offline render "now" is always time zero, so give
+  engine calls an explicit `when`.
+- One `Engine` serves the page (`sharedEngine()`). What the player schedules goes through the limiter;
+  what is played by hand (`noteOn`) goes through a separate path with a soft clipper, because the
+  browser's compressor delays everything 6 ms. Do not route live notes through the limiter.
+- Undo is `src/project/delta.ts`, not Immer patches: those cost 83 MB for 200 edits on a long track.
+- For a song at one tempo starting on its downbeat, `src/song/rhythm.ts` keeps Practice's original
+  arithmetic on purpose (`even`); `rhythm.unchanged.test.ts` compares it bit for bit. Leave both.
+- The storage layer imports nothing the Library and Practice load up front (see the note in
+  `src/library/catalog.ts`); check `dist/assets` after touching what they share.
 - `@playwright/test` is pinned to 1.63.0 to match the browser preinstalled in cloud sessions.
-- WebKit runs in CI only, and only tests that make no sound: Playwright's Linux WebKit hangs when
+- WebKit runs in CI only (read its results with the GitHub Actions tools), and only tests that make no sound: Playwright's Linux WebKit hangs when
   Tone.js loads (it always did). Put `needsSound()` at the top of any `describe` that opens a song.
   Practice on Safari has to be checked on a real phone.
 - The sampled grand piano loads from `tonejs.github.io`. Where that host is blocked the app falls back

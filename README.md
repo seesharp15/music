@@ -66,8 +66,12 @@ src/
   components/Stage.tsx   # falling notes + keyboard (canvas)
   components/Trimmer.tsx # loop trimmer / timeline
   components/Practice.tsx# controls and layout
-  song/                  # song format types, loader, rhythm analysis
-  music/ project/ assist/# shared types for the studio (see docs/plan)
+  song/                  # song format types, loader, beat map, rhythm analysis
+  music/                 # musical time, quantize, tempo estimation, theory kernel, analysis
+  project/               # the editable project: schema, edit operations, undo, compile to a song
+  storage/               # IndexedDB: projects, snapshots, user songs; export and import
+  library/               # the home page, and the catalog of bank and user songs
+  assist/                # shared types for the assistant (see docs/plan)
 e2e/                     # browser tests
 public/songs/            # song data
 scripts/midi-to-song.mjs # MIDI → song JSON

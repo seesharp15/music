@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { alphaOf } from "../audio/mix";
 import type { Mix, Player } from "../audio/player";
+import { isDownbeat } from "../song/beatmap";
 import type { Rhythm } from "../song/rhythm";
 import type { Hand, Song } from "../song/types";
 import { HAND_COLORS } from "./colors";
@@ -82,8 +83,7 @@ export function Stage({ song, player, mix, rhythm, syncLines, keys }: Props) {
     ro.observe(canvas);
     resize();
 
-    const beat = song.bpm ? 60 / song.bpm : 0;
-    const beatsPerBar = song.timeSignature?.[0] ?? 4;
+    const beats = rhythm.beats;
 
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     const ease = (x: number, target: number, tau: number, dt: number) =>
@@ -163,11 +163,11 @@ export function Stage({ song, player, mix, rhythm, syncLines, keys }: Props) {
       }
 
       // Bar / beat lines.
-      if (beat > 0) {
-        const first = Math.floor(t / beat);
-        for (let b = first; b * beat < t + VISIBLE_SECONDS; b++) {
-          const y = hitY - (b * beat - t) * pps;
-          const bar = b % beatsPerBar === 0;
+      if (beats) {
+        const first = Math.floor(beats.beatAt(t));
+        for (let b = first; beats.secondsAt(b) < t + VISIBLE_SECONDS; b++) {
+          const y = hitY - (beats.secondsAt(b) - t) * pps;
+          const bar = isDownbeat(b, beats.beatsPerBar);
           ctx.fillStyle = bar ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)";
           ctx.fillRect(0, Math.round(y), width, 1);
         }

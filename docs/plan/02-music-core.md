@@ -416,3 +416,69 @@ would have turned them down. It only acts above −3 dBFS — a fistful of keys 
 nothing plays by hand until Stage 3. It is the one audible design decision in this stage that was not
 in the plan.
 
+### S2.7 — Practice on the beat map
+
+- **For a song at one tempo starting on its downbeat, the old arithmetic is still the arithmetic.**
+  `Rhythm` now carries the song's `BeatMap` and a flag, `even`, for exactly that case. `cellAt`,
+  `cellTime`, `barAt` and `barsFrom` in `src/song/rhythm.ts` are where the rhythm map, the coach and the
+  Loop button now get their numbers; for an even song they are the expressions those components used
+  before (`t / cell`, `idx * cell`, `floor(t / barLen) * barLen`), and only otherwise go through the
+  beat map. Going through it for every song would have been simpler and almost always the same — but
+  `(t / beat) * sub` and `t / (beat / sub)` can differ in the last bit, and "bit for bit" was the plan's
+  word. The beat lines and the metronome need no such care: a constant `BeatMap` is defined as
+  `t / beat` and `b * beat`.
+- **Proved, not sampled.** `src/song/rhythm.unchanged.test.ts` holds the old arithmetic of all seven
+  places, frozen, and compares every result of the new code with it by `Object.is`: every moment of the
+  song, every millisecond of its first two minutes, every cell and bar line, every beat line of the
+  waterfall and the trimmer at five zooms, and every metronome click as the scheduler's windows ask for
+  them — for Rewrite the Stars and for two awkward tempos.
+- **What is new** is for songs the bank does not have yet: under a `tempoMap` the rhythm map's bars,
+  the beat lines, the metronome and a count-in follow the tempo; with a `gridOffset` bar 1 starts at
+  the first downbeat and what comes before is the pickup. The rhythm map and the Metronome switch now
+  appear when the song has a beat map (a `tempoMap` with no `bpm` counts), not when it has a `bpm`.
+- **Free time is unchanged**: `beatMapOf` is null, so no rhythm map, no lines, no metronome, and a
+  count-in does not count. Step-through names positions on the nominal 120 grid as it always did.
+- **Measured** at 390 × 844 and 1440 × 900 with the CPU throttled four times: 59–60 frames a second
+  in the waterfall for both songs while playing, the worst frame 33 ms (once), no console errors.
+
+| # | Result |
+| --- | --- |
+| 2 | Pass — the arithmetic test above; and in the browser on the real songs (`e2e/beats.spec.ts`): the rhythm map's labels for Rewrite the Stars at bars 1, 9 and 53 are those worked out from the song file the old way; its metronome clicks are each within 1 ms of 0.48 s apart, accented one in four, on the notes' clock; Divenire shows no rhythm map and no Metronome switch, and nothing clicks. |
+
+### The stage, in sum
+
+| # | Criterion | Result |
+| --- | --- | --- |
+| 1 | `TimeMap` round trip; bars across 4/4 → 3/4 → 6/8 | Pass |
+| 2 | Rewrite the Stars unchanged on `BeatMap`; Divenire no grid | Pass |
+| 3 | `detectKey`, 24 melodies | Pass — 24 of 24 |
+| 4 | `detectChord` and `parseChord` agree on 60 chords; `romanOf` | Pass — 64 chords |
+| 5 | Every edit rule has a test | Pass |
+| 6 | 200 edits, 200 undos, redo | Pass |
+| 7 | Edits survive a closed tab; a damaged project is a typed failure | Pass — in Chromium and, after a fix CI prompted, WebKit |
+| 8 | Rewrite the Stars compiles back within 2 ms | Pass |
+| 9 | Scheduling test unchanged; Practice ≤ +10 KB | Pass — +6.1 KB at the end of the stage (136.2 KB, in the same four files) |
+| 10 | `setSong` during playback: no gap, no doubled note | Pass |
+| 11 | Two tracks, drums, tempo change within 5 ms; solo | Pass |
+| 12 | `noteOn` from a pointer within one render quantum | Pass — see S2.5 for how it was measured, and for the live path it led to |
+| 13 | Export and import deep-equal; malformed refused by name | Pass |
+
+`npm run check` passes: 505 unit tests, 110 browser tests in Chromium (two more skip themselves where
+the piano samples cannot be downloaded).
+
+**Not verified, and for the owner:**
+
+- **Practice in Safari on a real phone.** Playwright's WebKit still cannot load the audio code (Stage 0),
+  so the rebuilt audio path — a shared engine, the same nodes — has been through every Chromium test
+  and no Safari at all. This stage changed Practice's audio more than any before it; it wants the same
+  check by hand that Stage 1 got before anything is built on it.
+- **Storage in WebKit** runs in CI, not here. Its first run found the closed-tab loss fixed above.
+- **A test that was already unsteady.** `e2e/hands.spec.ts` "a tap mutes a hand, and a tap along the
+  slider sets its volume" failed once and passed on retry in CI during this stage. It is a Stage 1
+  test of a touch tap, it does not touch anything this stage changed, and it has not been altered.
+- **The live path's soft clipper** (S2.5) is a sound nobody has listened to yet; nothing reaches it
+  until Stage 3 puts keys on the screen.
+- **One branch, not seven.** The protocol asks for a branch and a pull request for each package. This
+  session could push to one branch only, so the packages are seven commits on it (and one fix), each
+  passing its own checks; no pull request has been opened.
+
