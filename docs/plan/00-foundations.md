@@ -160,4 +160,51 @@ land S0.4 first.
 
 ## Build notes
 
-_Empty. Record here anything found during the build that the plan got wrong._
+Built 15–16 November 2026. What differed from the plan, and why.
+
+- **CI runs on every push to any branch**, not only on pull requests and the default branch. A branch
+  is then checked before a pull request exists, which is how this stage was developed. Making a failed
+  run *block* a merge (criterion 2) is a repository setting — branch protection on the default branch
+  requiring the `check` job — and has not been turned on; that is the owner's to do.
+- **`npm run test:e2e` builds first.** The browser tests run against the built app. Playwright reuses a
+  preview server that is already running, and a reused server does not rebuild, so the first version
+  quietly tested a stale build. The build is now part of the script, not of the server command.
+- **The seam is a module, not just an interface.** The instruments moved out of the player into
+  `src/audio/voices.ts`, and the player calls a `Sink`. `playRange` and the speed slider's arithmetic
+  moved to `src/audio/range.ts` and `src/components/speed.ts` so they can be tested without Tone.
+- **Query strings in the hash.** The plan's `#/?q=…` form does not come free with the router: wouter's
+  hash location writes anything after `?` to the page's real query string, where the feature flags
+  live. `src/app/hashRoute.ts` keeps a screen's state inside the hash and gives the router the path
+  alone. Stage 1's Library uses it.
+- **A `#/credits` route** was added for the sample credit (contracts §11 and the changelog updated).
+- **Type files are generated from `contracts.md`**, block by block, so the two start identical.
+  `EditError` is a real class in `src/project/errors.ts`; `AssistProvider` sits outside the pure zone
+  as the plan says.
+- **Prettier covers TypeScript only.** The stylesheet is written one rule per line on purpose and the
+  plan's Markdown tables would be re-flowed; both are excluded.
+- **Three `react-hooks/exhaustive-deps` warnings** remain on existing components. They describe
+  deliberate patterns; changing them is behaviour change and outside this stage.
+- **Playwright is pinned to 1.63.0**, the version whose browser is preinstalled in cloud sessions.
+- **Bundle (criterion 6):** before this stage Practice downloaded 122.4 KB of JavaScript, gzipped, in
+  one file. After it, 127.1 KB in three: +4.8 KB, of which the router is about 2.
+
+### Acceptance
+
+| # | Result |
+| --- | --- |
+| 1 | `npm run check` passes locally. In CI: see the note on criterion 4. |
+| 2 | CI runs on every push. Blocking merges is not set up: it needs branch protection (owner). |
+| 3 | Pass — `e2e/routes.spec.ts`. |
+| 4 | Chromium: pass. WebKit: **see below.** |
+| 5 | Pass — breaking `playRange` fails four unit tests; making the scheduler ignore speed fails the half-speed test. |
+| 6 | Pass — +4.8 KB. |
+| 7 | Pass — a probe file importing React and reading `window` fails both the type-check and the linter. |
+| 8 | Pass. |
+| 9 | Pass — README and `#/credits`, with a test. |
+| 10 | Pass — `e2e/audio/render.spec.ts`, `e2e/scheduling.spec.ts`. |
+
+**WebKit (criterion 4): not passing, cause not yet known.** In CI the WebKit smoke test sees a blank
+page with no uncaught errors and no failed requests; every Chromium test passes. WebKit cannot be run in
+the session this was built in, so a probe test (`e2e/probe.spec.ts`) now reports from CI whether pages
+without audio load there, what audio support that build has, and whether the page crashes. This note is
+updated once it has answered. Until then, criteria 1 and 4 are open for WebKit only.
