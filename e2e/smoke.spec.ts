@@ -14,6 +14,7 @@ test("practise a song: play, loop a section, step, change speed, and pick up aft
     if (m.type() === "error") problems.push(`console: ${m.text()}`);
   });
   page.on("requestfailed", (r) => problems.push(`request failed: ${r.url()} (${r.failure()?.errorText})`));
+  page.on("crash", () => problems.push("the page crashed"));
 
   await open(page, "#/play/rewrite-the-stars");
   try {
@@ -21,8 +22,8 @@ test("practise a song: play, loop a section, step, change speed, and pick up aft
   } catch (e) {
     const said = await page
       .locator("body")
-      .innerText()
-      .catch(() => "(no body)");
+      .innerText({ timeout: 2000 })
+      .catch((err: Error) => `(could not read the page: ${err.message.split("\n")[0]})`);
     throw new Error(
       `${(e as Error).message}\n\nThe page shows:\n${said}\n\nProblems:\n${problems.join("\n") || "(none)"}`,
       { cause: e },

@@ -23,7 +23,7 @@ export default defineConfig({
         launchOptions: { args: ["--autoplay-policy=no-user-gesture-required"] },
       },
     },
-    ...(withWebKit ? [{ name: "webkit", use: { ...devices["iPhone 14"] }, testMatch: /smoke\.spec\.ts/ }] : []),
+    ...(withWebKit ? [{ name: "webkit", use: { ...devices["iPhone 14"] }, testMatch: /(smoke|probe)\.spec\.ts/ }] : []),
   ],
   webServer: {
     // `npm run test:e2e` builds first; this only serves what was built.
