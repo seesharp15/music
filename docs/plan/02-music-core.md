@@ -319,8 +319,13 @@ which S2.6 then implements over IndexedDB. Criterion 7 is therefore checked in S
 | 7 | Pass — `e2e/storage.spec.ts`: edits survive leaving the page, closing the tab and reloading, with no explicit save; a damaged project comes back as `{ ok: false, reason: "invalid", errors, snapshot }` with the newest sound snapshot, skipping damaged ones. |
 | 13 | Pass — a project exported by a real download and imported through a real file picker into an empty database is deep-equal (`e2e/storage.spec.ts`); four seeds of 150 random edits round-trip in `src/project/file.test.ts`; nine kinds of malformed file are each refused with a message that names the problem. |
 
-WebKit has not been run locally (it is not installed in the build environment): the storage tests'
-first WebKit run is in CI.
+**What WebKit found.** The storage tests' first WebKit run was in CI (it is not installed in the build
+environment), and one failed: closing a tab outright fires neither `pagehide` nor `visibilitychange`
+there, so edits made in the last 800 ms were lost. The store now also listens for `beforeunload` —
+only while there are unsaved changes, since a page with that listener cannot be kept in some browsers'
+back-forward cache — and never asks the user to confirm. On a phone the app being killed in the
+background fires nothing at all; what protects the author there is `visibilitychange`, which fires as
+the app leaves the screen.
 
 ### S2.4 — compile and decompile
 

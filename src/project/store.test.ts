@@ -343,6 +343,29 @@ describe("autosave", () => {
     expect(now).toHaveLength(2);
   });
 
+  it("listens for the tab being closed only while there is something unsaved", async () => {
+    const { now, persistence } = recorder();
+    const added = vi.spyOn(window, "addEventListener");
+    const removed = vi.spyOn(window, "removeEventListener");
+    const count = (spy: typeof added) => spy.mock.calls.filter(([type]) => type === "beforeunload").length;
+    const store = createProjectStore(fresh(), { persistence });
+    expect(count(added)).toBe(0);
+    store.apply([add(60)], "One");
+    store.apply([add(62)], "Two");
+    expect(count(added)).toBe(1);
+    window.dispatchEvent(new Event("beforeunload"));
+    expect(now).toHaveLength(1);
+    expect(notes(now[0])).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.getState().dirty).toBe(false);
+    expect(count(removed)).toBe(1);
+    window.dispatchEvent(new Event("beforeunload"));
+    expect(now).toHaveLength(1);
+    store.dispose();
+    added.mockRestore();
+    removed.mockRestore();
+  });
+
   it("without somewhere to save, it never tries", async () => {
     const store = createProjectStore(fresh());
     store.apply([add(60)], "One");

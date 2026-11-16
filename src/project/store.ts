@@ -90,6 +90,8 @@ export function createProjectStore(initial: Project, opts: ProjectStoreOptions =
   let writing: Promise<void> = Promise.resolve();
   let disposed = false;
 
+  const listening = !!persistence && typeof window !== "undefined" && typeof document !== "undefined";
+
   const stamped = (project: Project): Project => ({ ...project, updatedAt: now().toISOString() });
 
   function changed(project: Project) {
@@ -103,8 +105,24 @@ export function createProjectStore(initial: Project, opts: ProjectStoreOptions =
       redoLabel: redoStack[redoStack.length - 1]?.label ?? null,
     });
     if (!persistence || disposed) return;
+    watchUnload(true);
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => void flush(), debounceMs);
+  }
+
+  /**
+   * While there are unsaved changes, also listen for `beforeunload`. Closing a tab does not always
+   * fire `pagehide` (WebKit does not, when the tab is closed outright), and this is the one event
+   * that then still does. It is only attached while it is needed, because a page with a
+   * `beforeunload` listener cannot be kept in some browsers' back-forward cache. Nothing here asks
+   * the user to confirm leaving.
+   */
+  let watchingUnload = false;
+  function watchUnload(on: boolean) {
+    if (!listening || on === watchingUnload) return;
+    watchingUnload = on;
+    if (on) window.addEventListener("beforeunload", leaving);
+    else window.removeEventListener("beforeunload", leaving);
   }
 
   function flush(): Promise<void> {
@@ -120,6 +138,7 @@ export function createProjectStore(initial: Project, opts: ProjectStoreOptions =
         await persistence.save(project, { snapshot });
         savedVersion = Math.max(savedVersion, writingVersion);
         store.setState({ dirty: version !== savedVersion, saveError: null });
+        if (version === savedVersion) watchUnload(false);
       } catch (err) {
         store.setState({ saveError: err instanceof Error ? err.message : String(err) });
       }
@@ -129,7 +148,7 @@ export function createProjectStore(initial: Project, opts: ProjectStoreOptions =
 
   /** The page is being hidden or closed: write what can be written without waiting, then save properly. */
   function leaving() {
-    if (!persistence || version === savedVersion) return;
+    if (!persistence || disposed || version === savedVersion) return;
     try {
       persistence.saveNow?.(stamped(store.getState().project));
     } catch {
@@ -140,7 +159,6 @@ export function createProjectStore(initial: Project, opts: ProjectStoreOptions =
   const onVisibility = () => {
     if (document.visibilityState === "hidden") leaving();
   };
-  const listening = !!persistence && typeof window !== "undefined" && typeof document !== "undefined";
   if (listening) {
     window.addEventListener("pagehide", leaving);
     document.addEventListener("visibilitychange", onVisibility);
@@ -183,6 +201,7 @@ export function createProjectStore(initial: Project, opts: ProjectStoreOptions =
       disposed = true;
       if (timer) clearTimeout(timer);
       timer = null;
+      watchUnload(false);
       if (listening) {
         window.removeEventListener("pagehide", leaving);
         document.removeEventListener("visibilitychange", onVisibility);
