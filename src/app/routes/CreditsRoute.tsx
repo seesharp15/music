@@ -1,15 +1,10 @@
+import { TopBar } from "../TopBar";
+
 /** `#/credits` — whose work this app is built on, and under which licences. */
 export default function CreditsRoute() {
   return (
     <>
-      <header className="topbar">
-        <a className="brand" href="#/">
-          <span className="brand-mark" aria-hidden>
-            ♪
-          </span>
-          Piano Tutor
-        </a>
-      </header>
+      <TopBar />
       <main className="credits">
         <h1>Credits</h1>
         <h2>Sounds</h2>

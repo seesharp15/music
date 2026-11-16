@@ -1,24 +1,19 @@
 import { useEffect, useState } from "react";
-import { useLocation } from "wouter";
 import { Practice } from "../../components/Practice";
 import { loadSong } from "../../song/load";
 import type { Song } from "../../song/types";
+import { TopBar } from "../TopBar";
 import { useSongIndex } from "../useSongIndex";
 
 /** `#/play/:songId` — the practice screen for one song. */
 export default function PracticeRoute({ songId }: { songId: string }) {
   const index = useSongIndex();
-  const [, navigate] = useLocation();
   const [song, setSong] = useState<Song | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const entries = index.status === "ready" ? index.entries : null;
   const entry = entries?.find((e) => e.id === songId) ?? null;
-
-  // An id that isn't in the bank falls back to the first song, as it always has.
-  useEffect(() => {
-    if (entries && !entry && entries[0]) navigate(`/play/${entries[0].id}`, { replace: true });
-  }, [entries, entry, navigate]);
+  const missing = !!entries && !entry;
 
   useEffect(() => {
     if (!entry) return;
@@ -38,32 +33,27 @@ export default function PracticeRoute({ songId }: { songId: string }) {
 
   return (
     <>
-      <header className="topbar">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden>
-            ♪
-          </span>
-          Piano Tutor
+      <TopBar>
+        <a className="back-link" href="#/">
+          ← Library
+        </a>
+      </TopBar>
+      {missing ? (
+        <div className="message" role="alert">
+          <p>That song isn’t in the library.</p>
+          <p>
+            <a href="#/">See all the songs</a>
+          </p>
         </div>
-        {entries && entries.length > 1 && (
-          <select
-            className="song-select"
-            value={entry?.id ?? ""}
-            onChange={(e) => navigate(`/play/${e.target.value}`)}
-            aria-label="Song"
-          >
-            {entries.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.title}
-                {e.artist ? ` — ${e.artist}` : ""}
-              </option>
-            ))}
-          </select>
-        )}
-      </header>
-      {message && <div className="message">{message}</div>}
-      {!message && !song && <div className="message">Loading…</div>}
-      {song && <Practice key={song.id} song={song} />}
+      ) : message ? (
+        <div className="message" role="alert">
+          {message}
+        </div>
+      ) : !song ? (
+        <div className="message">Loading…</div>
+      ) : (
+        <Practice key={song.id} song={song} />
+      )}
     </>
   );
 }
