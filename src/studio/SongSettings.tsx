@@ -19,6 +19,8 @@ export function CommitField(props: {
   placeholder?: string;
   onCommit: (value: string) => void;
   allowEmpty?: boolean;
+  /** The id of a <datalist> of suggestions. */
+  list?: string;
 }) {
   const [draft, setDraft] = useState(props.value);
   useEffect(() => setDraft(props.value), [props.value]);
@@ -35,6 +37,7 @@ export function CommitField(props: {
         className="input"
         value={draft}
         placeholder={props.placeholder}
+        list={props.list}
         maxLength={120}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}

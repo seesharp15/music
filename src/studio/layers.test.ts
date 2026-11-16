@@ -6,7 +6,18 @@ import { editableTracks, layerIds, registerLayer, trackColor } from "./layers";
 describe("layers", () => {
   it("the built-in layers are drawn in order: the background first, the keyboard over the notes", () => {
     const ids = layerIds();
-    expect(ids).toEqual(["background", "grid", "notes", "pending", "drums", "line", "gutters", "keyboard", "box"]);
+    expect(ids).toEqual([
+      "background",
+      "grid",
+      "notes",
+      "pending",
+      "drums",
+      "loop",
+      "line",
+      "gutters",
+      "keyboard",
+      "box",
+    ]);
   });
 
   it("a later stage adds its layer between two others without editing the canvas", () => {
@@ -16,7 +27,7 @@ describe("layers", () => {
     registerLayer({ id: "hints", order: 5, draw() {} })();
     expect(layerIds()).not.toContain("hints");
     remove();
-    expect(layerIds()).toHaveLength(9);
+    expect(layerIds()).toHaveLength(10);
   });
 });
 

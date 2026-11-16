@@ -162,7 +162,7 @@
 
 /* What is selected, floating over the canvas. */
 .selection-chip {
-  position: absolute; z-index: 4; top: 6px; left: 78px; display: flex; align-items: center; border-radius: 999px; overflow: hidden;
+  position: absolute; z-index: 4; top: 6px; left: 82px; display: flex; align-items: center; border-radius: 999px; overflow: hidden;
   border: 1px solid #4b5263; background: rgba(29, 33, 43, 0.95); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
 }
 .selection-chip button { height: 44px; border: 0; background: none; cursor: pointer; font-size: 0.85rem; }
@@ -194,3 +194,19 @@
 .chord-write { display: flex; align-items: end; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
 .chord-write .field { flex: 1; }
 .chord-nokey { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+
+/* The Sections sheet. */
+.sections { display: flex; flex-direction: column; gap: 12px; }
+.section-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.section-card { padding: 10px; border-radius: 12px; border: 1px solid var(--border); border-left: 5px solid var(--section); background: var(--surface-2); }
+.section-top { display: flex; align-items: flex-end; gap: 8px; }
+.section-top .field { flex: 1; min-width: 0; }
+.section-top .field > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.section-swatch { flex: none; width: 44px; height: 44px; border-radius: 10px; border: 2px solid rgba(255, 255, 255, 0.25); background: var(--section); cursor: pointer; }
+.section-where { margin: 6px 0; color: var(--muted); font-size: 0.78rem; }
+.section-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.section-actions .chip { height: 44px; }
+.section-actions .chip:disabled { opacity: 0.4; cursor: default; }
+.chip.is-danger { color: #ff8a80; }
+.section-add { display: flex; flex-wrap: wrap; gap: 8px; }
+.delete-choices { display: flex; flex-direction: column; gap: 8px; }

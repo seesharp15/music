@@ -9,6 +9,7 @@ import { EditorCanvas } from "./EditorCanvas";
 import { ViewMenu } from "./ViewMenu";
 import { SessionContext, useSession, useStoreState, useUi } from "./context";
 import { FirstRun } from "./FirstRun";
+import { SectionsSheet } from "./sections/SectionsSheet";
 import { Inspector } from "./Inspector";
 import { duplicateProject, removeProject, studioHref } from "./projects";
 import type { Session } from "./session";
@@ -58,6 +59,11 @@ export function Studio({ session, banner }: { session: Session; banner?: React.R
           {!session.readOnly && (
             <Sheet id="chords" title="Chords">
               <ChordPicker />
+            </Sheet>
+          )}
+          {!session.readOnly && (
+            <Sheet id="sections" title="Sections">
+              <SectionsSheet />
             </Sheet>
           )}
         </div>
@@ -148,6 +154,8 @@ function StudioBar() {
           <Menu
             label="Song menu"
             items={[
+              { label: "Sections", onSelect: () => ui.setState({ sheet: "sections" }) },
+              { label: "Song settings", onSelect: () => ui.setState({ sheet: "settings" }) },
               { label: "Rename…", onSelect: () => setDialog("rename") },
               { label: "Duplicate", onSelect: () => void duplicate() },
               { label: "Export project", onSelect: () => exportProject(store.getState().project) },

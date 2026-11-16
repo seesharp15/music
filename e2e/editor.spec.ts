@@ -21,7 +21,7 @@ test("the song is drawn as a waterfall: later music higher, each note above its 
   await settled(page);
   const v = await view(page);
   expect(v.tick).toBe(0);
-  expect(v.barGutter + v.chordGutter).toBe(72);
+  expect(v.barGutter + v.chordGutter).toBe(76);
 
   // The middle of a melody note is green; of a chord-track note, blue but fainter (it is not the
   // active track); between notes there is only background.

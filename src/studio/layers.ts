@@ -91,6 +91,8 @@ const EXTRA: NoteColor[] = [
 ];
 export const DRUM_COLOR = "#ffb84d";
 export const ACCENT = "#ffcc00";
+/** Width of the strip in the bar gutter that shows which section a bar belongs to. */
+const SECTION_STRIP = 11;
 const SECTION_COLORS = ["#5fd38d", "#5aa8f8", "#f0a35e", "#b78cf0", "#f08bc0", "#5ed0d8"];
 
 /** A track's colour: melody green and chords blue (the hands' colours), bass indigo, then a palette. */
@@ -304,6 +306,29 @@ registerLayer({
 });
 
 registerLayer({
+  id: "loop",
+  order: 45,
+  draw(ctx, { view: v, ui }) {
+    const loop = ui.loop;
+    if (!loop) return;
+    const f = frame(v);
+    ctx.beginPath();
+    ctx.rect(0, 0, v.width, f.bottom);
+    ctx.clip();
+    const yStart = yAtTick(v, loop.start);
+    const yEnd = yAtTick(v, loop.end);
+    // What is outside the loop is dimmed; its two ends are marked.
+    ctx.fillStyle = "rgba(8,9,12,0.55)";
+    if (yEnd > 0) ctx.fillRect(f.left, 0, v.width - f.left, yEnd);
+    if (yStart < f.bottom) ctx.fillRect(f.left, yStart, v.width - f.left, f.bottom - yStart);
+    ctx.fillStyle = ACCENT;
+    ctx.globalAlpha = 0.9;
+    ctx.fillRect(0, Math.round(yEnd) - 1, v.width, 2);
+    ctx.fillRect(0, Math.round(yStart) - 1, v.width, 2);
+  },
+});
+
+registerLayer({
   id: "line",
   order: 50,
   draw(ctx, { view: v, playTick }) {
@@ -329,15 +354,30 @@ registerLayer({
     ctx.fillStyle = "#12141a";
     ctx.fillRect(0, 0, f.left, f.bottom);
 
-    // Sections: a coloured strip down the bar gutter, with the name where the section starts.
+    // Sections: a coloured strip down the bar gutter, with the name running up it.
     project.sections.forEach((s, i) => {
       if (s.tick > end || s.tick + s.dur < start) return;
       const bottom = yAtTick(v, s.tick);
       const top = yAtTick(v, s.tick + s.dur);
       ctx.fillStyle = sectionColor(project, i);
-      ctx.globalAlpha = 0.85;
-      ctx.fillRect(0, top + 1, 4, bottom - top - 2);
+      ctx.globalAlpha = 0.9;
+      ctx.fillRect(0, top + 1, SECTION_STRIP, bottom - top - 2);
       ctx.globalAlpha = 1;
+      if (bottom - top > 24) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, top + 1, SECTION_STRIP, bottom - top - 2);
+        ctx.clip();
+        // The name starts at the section's start (its foot) and reads upwards; it stays on screen
+        // while any of the section is.
+        ctx.translate(SECTION_STRIP / 2 + 3, Math.min(bottom, f.bottom) - 4);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillStyle = "rgba(0,0,0,0.8)";
+        ctx.font = "700 9px system-ui, sans-serif";
+        ctx.textAlign = "left";
+        ctx.fillText(s.name, 0, 0);
+        ctx.restore();
+      }
     });
 
     // Bar numbers, each just above its bar line (a bar runs upwards from its line).
@@ -354,7 +394,7 @@ registerLayer({
       ctx.fillRect(0, Math.round(y), f.left, 1);
       if ((bar - 1) % every === 0) {
         ctx.fillStyle = tick >= project.lengthTicks ? "rgba(138,146,163,0.5)" : "#8a92a3";
-        ctx.fillText(String(bar), 4 + (v.barGutter - 4) / 2, y - 4);
+        ctx.fillText(String(bar), SECTION_STRIP + (v.barGutter - SECTION_STRIP) / 2, y - 4);
       }
     }
 

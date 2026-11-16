@@ -28,7 +28,7 @@ export interface View {
   keyHi: number;
 }
 
-export const BAR_GUTTER = 26;
+export const BAR_GUTTER = 30;
 export const CHORD_GUTTER = 46;
 export const DRUM_LANE = 16;
 /** The cursor line sits this share of the waterfall's height above the keyboard. */

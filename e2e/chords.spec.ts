@@ -250,7 +250,8 @@ test("the picker works from the keyboard alone and fits a phone", async ({ page 
 
   for (const name of ["C, I", "Remove", "A bar", "Write to track", "Back a bar"]) {
     const box = (await sheet(page).getByRole("button", { name, exact: true }).boundingBox())!;
-    expect(Math.min(box.width, box.height), name).toBeGreaterThanOrEqual(44);
+    // Rounded: measured while the sheet is still sliding up, a 44 px button can read 43.99997.
+    expect(Math.round(Math.min(box.width, box.height)), name).toBeGreaterThanOrEqual(44);
   }
   await page.keyboard.press("Escape");
   await expect(sheet(page)).toHaveCount(0);
