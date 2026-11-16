@@ -3,6 +3,7 @@ import { ConfirmDialog, Dialog, PromptDialog } from "../app/ui/Dialog";
 import { Menu } from "../app/ui/Menu";
 import { exposeStudio } from "../app/testHooks";
 import { exportProject } from "../storage";
+import { ChordPicker } from "./chords/ChordPicker";
 import { installCommands, SHORTCUTS } from "./commands";
 import { EditorCanvas } from "./EditorCanvas";
 import { ViewMenu } from "./ViewMenu";
@@ -54,6 +55,11 @@ export function Studio({ session, banner }: { session: Session; banner?: React.R
           <Sheet id="inspector" title="Selection">
             <Inspector />
           </Sheet>
+          {!session.readOnly && (
+            <Sheet id="chords" title="Chords">
+              <ChordPicker />
+            </Sheet>
+          )}
         </div>
         {session.readOnly ? (
           <div className="studio-controls">

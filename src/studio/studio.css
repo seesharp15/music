@@ -170,3 +170,27 @@
 .selection-main[aria-pressed="true"] { color: var(--accent); }
 .selection-add, .selection-clear { width: 44px; color: var(--muted); font-size: 1rem !important; }
 .selection-add.is-on { background: var(--accent); color: #111; font-weight: 700; }
+
+/* The chord picker. */
+.chords-btn { font-size: 0.8rem; font-weight: 700; }
+.chord-picker { display: flex; flex-direction: column; gap: 10px; }
+.chord-where { display: flex; align-items: center; gap: 8px; }
+.chord-where p { flex: 1; margin: 0; display: flex; flex-direction: column; text-align: center; font-size: 0.9rem; }
+.chord-where p span { color: var(--muted); font-size: 0.8rem; }
+.chord-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.chord-row .chip { height: 44px; }
+.chord-row .chip:disabled { opacity: 0.4; cursor: default; }
+.chord-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
+.chord-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 44px; padding: 4px;
+  border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); cursor: pointer;
+}
+.chord-btn.is-big { min-height: 58px; }
+.chord-btn.is-big strong { font-size: 1.1rem; }
+.chord-btn span { color: var(--muted); font-size: 0.72rem; min-height: 0.9em; }
+.chord-btn.is-on { border-color: var(--accent); }
+.chord-any { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; align-items: end; }
+.chord-any .select, .chord-write .select { width: 100%; height: 44px; border-radius: 8px; }
+.chord-write { display: flex; align-items: end; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.chord-write .field { flex: 1; }
+.chord-nokey { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }

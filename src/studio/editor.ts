@@ -5,7 +5,9 @@
  */
 import type { NoteColor } from "../components/stage-draw";
 import { gridTicks, quantize } from "../music/quantize";
+import { chordAt } from "../music/theory";
 import type { NoteTrack, Project } from "../project/types";
+import { beatLine } from "./chords/edit";
 import { addNote, eraseNotes, grabbable, moveNotes, resizeNotes, select, setCursor } from "./actions";
 import { initialState, LONG_PRESS_MS, step, type Input, type Intent } from "./interaction";
 import { drawLayers, type DragPreview, type DrawState } from "./layers";
@@ -267,8 +269,13 @@ export function createEditor(canvas: HTMLCanvasElement, session: Session): Edito
         return api.zoomBy(intent.factor, intent.y);
       case "cursor":
         return setCursor(session, intent.tick);
-      case "chord":
-        return ui.setState({ sheet: "chords", chordTick: Math.max(0, Math.round(intent.tick)) });
+      case "chord": {
+        if (session.readOnly) return;
+        // On a chord: that chord. On empty gutter: the beat line at or before the tap.
+        const at = chordAt(store.getState().project, intent.tick);
+        const tick = at ? at.tick : beatLine(playback.time(), intent.tick);
+        return ui.setState({ sheet: "chords", chordTick: tick, cursor: tick });
+      }
       case "select":
         return select(session, intent.ids, intent.mode);
       case "box":

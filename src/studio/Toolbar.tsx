@@ -1,3 +1,4 @@
+import { chordAt } from "../music/theory";
 import { useSession, useUi } from "./context";
 import type { Tool } from "./ui-store";
 
@@ -34,7 +35,17 @@ const TOOLS: { id: Tool; label: string; hint: string; icon: React.ReactNode }[] 
 /** The tools; the transport sits beside them in the same row. */
 export function Toolbar({ children }: { children?: React.ReactNode }) {
   const { ui } = useSession();
+  const session = useSession();
   const tool = useUi((s) => s.tool);
+  const chordsOpen = useUi((s) => s.sheet === "chords");
+  /** The picker opens on the chord under the cursor, or at the start of the cursor's bar. */
+  const barLine = () => {
+    const cursor = ui.getState().cursor;
+    const here = chordAt(session.store.getState().project, cursor);
+    if (here) return here.tick;
+    const time = session.playback.time();
+    return time.tickOfBar(time.positionAt(cursor).bar);
+  };
   return (
     <div className="toolbar">
       <div className="tool-group" role="group" aria-label="Tool">
@@ -53,6 +64,15 @@ export function Toolbar({ children }: { children?: React.ReactNode }) {
           </button>
         ))}
       </div>
+      <button
+        className={`tool-btn chords-btn ${chordsOpen ? "is-on" : ""}`}
+        aria-pressed={chordsOpen}
+        aria-label="Chords"
+        title="Chords: choose the chord at the cursor"
+        onClick={() => ui.setState(chordsOpen ? { sheet: null } : { sheet: "chords", chordTick: barLine() })}
+      >
+        <span aria-hidden>C7</span>
+      </button>
       {children}
     </div>
   );
