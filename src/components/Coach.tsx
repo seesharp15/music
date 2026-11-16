@@ -1,20 +1,21 @@
 import { useEffect, useRef, useState } from "react";
-import type { HandLevel, LoopRange, Player } from "../audio/player";
+import type { LoopRange, Player } from "../audio/player";
 import type { Rhythm } from "../song/rhythm";
 import type { Hand } from "../song/types";
 
 interface Stage {
   label: string;
-  levels: Record<Hand, HandLevel>;
+  /** Which hands are silenced for this step. Volumes are never touched. */
+  muted: Record<Hand, boolean>;
   rate: number;
 }
 
 const STAGES: Stage[] = [
-  { label: "Right hand", levels: { L: "off", R: "on" }, rate: 0.75 },
-  { label: "Left hand", levels: { L: "on", R: "off" }, rate: 0.75 },
-  { label: "Together 60%", levels: { L: "on", R: "on" }, rate: 0.6 },
-  { label: "Together 80%", levels: { L: "on", R: "on" }, rate: 0.8 },
-  { label: "Together 100%", levels: { L: "on", R: "on" }, rate: 1 },
+  { label: "Right hand", muted: { L: true, R: false }, rate: 0.75 },
+  { label: "Left hand", muted: { L: false, R: true }, rate: 0.75 },
+  { label: "Together 60%", muted: { L: false, R: false }, rate: 0.6 },
+  { label: "Together 80%", muted: { L: false, R: false }, rate: 0.8 },
+  { label: "Together 100%", muted: { L: false, R: false }, rate: 1 },
 ];
 const PASSES_PER_STAGE = 2;
 
@@ -31,6 +32,15 @@ export function Coach({ player, rhythm, loop, syncLines, onSyncLines }: Props) {
   const [routine, setRoutine] = useState<{ stage: number; pass: number } | "done" | null>(null);
   const routineRef = useRef(routine);
   routineRef.current = routine;
+  // Which hands were muted before the routine borrowed the mute switches; handed back when it ends.
+  const mutedBefore = useRef<Record<Hand, boolean> | null>(null);
+  const handBack = () => {
+    const was = mutedBefore.current;
+    mutedBefore.current = null;
+    if (!was) return;
+    player.setMuted("L", was.L);
+    player.setMuted("R", was.R);
+  };
 
   // Advance the routine each time the loop comes around.
   useEffect(
@@ -45,7 +55,7 @@ export function Coach({ player, rhythm, loop, syncLines, onSyncLines }: Props) {
           pass = 0;
         }
         if (stage >= STAGES.length) {
-          player.setLevels({ L: "on", R: "on" });
+          handBack();
           setRoutine("done");
           return;
         }
@@ -62,6 +72,8 @@ export function Coach({ player, rhythm, loop, syncLines, onSyncLines }: Props) {
       const start = Math.floor(player.currentTime() / barLen) * barLen;
       player.setLoop({ enabled: true, start, end: Math.min(start + 2 * barLen, player.duration) });
     }
+    const { mix } = player.state;
+    mutedBefore.current ??= { L: mix.L.muted, R: mix.R.muted };
     applyStage(player, STAGES[stage]);
     setRoutine({ stage, pass: 0 });
     player.seek(player.state.loop.start);
@@ -70,7 +82,7 @@ export function Coach({ player, rhythm, loop, syncLines, onSyncLines }: Props) {
 
   const stopRoutine = () => {
     setRoutine(null);
-    player.setLevels({ L: "on", R: "on" });
+    handBack();
   };
 
   const active = routine && routine !== "done" ? routine : null;
@@ -131,6 +143,7 @@ export function Coach({ player, rhythm, loop, syncLines, onSyncLines }: Props) {
 }
 
 function applyStage(player: Player, s: Stage) {
-  player.setLevels(s.levels);
+  player.setMuted("L", s.muted.L);
+  player.setMuted("R", s.muted.R);
   player.setRate(s.rate);
 }

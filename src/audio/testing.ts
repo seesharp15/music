@@ -10,8 +10,9 @@
 import * as Tone from "tone";
 import type { Hand, Song, SoundId } from "../song/types";
 import type { Player } from "./player";
-import type { Channel, Sink } from "./types";
-import { Voices, type HandLevel } from "./voices";
+import type { Mix } from "./mix";
+import type { Channel, HandMix, Sink } from "./types";
+import { Voices } from "./voices";
 
 /** The audio clock, in seconds: the clock every `when` is measured on. */
 export const audioNow = () => Tone.getContext().currentTime;
@@ -67,7 +68,9 @@ export interface RenderOptions {
   /** Length of the render. Defaults to the song plus two seconds for tails. */
   seconds?: number;
   stereo?: boolean;
-  levels?: Record<Hand, HandLevel>;
+  mix?: Mix;
+  /** Volume and mute changes part-way through, at times in seconds. */
+  changes?: { time: number; hand: Hand; mix: HandMix }[];
   sampleRate?: number;
 }
 
@@ -90,11 +93,11 @@ export async function renderOffline(song: Song, opts: RenderOptions = {}): Promi
       const voices = new Voices({
         sound: opts.sound ?? "clear",
         stereo: opts.stereo ?? false,
-        levels: opts.levels ?? { L: "on", R: "on" },
+        mix: opts.mix,
       });
       if ((await voices.ready()) === "failed") throw new Error("The grand piano samples could not be loaded");
+      for (const c of opts.changes ?? []) voices.setHandMix(c.hand, c.mix, c.time);
       for (const n of song.notes) {
-        if (opts.levels?.[n.hand] === "off") continue;
         voices.play(n.pitch, Math.max(n.duration, 0.05), n.velocity ?? 0.7, { hand: n.hand }, n.time);
       }
     },

@@ -1,8 +1,23 @@
 import * as Tone from "tone";
 import type { Hand, SoundId } from "../song/types";
-import type { Channel, Sink } from "./types";
+import { defaultMix, gainOf, type Mix } from "./mix";
+import type { Channel, HandMix, Sink } from "./types";
 
-const SOFT_GAIN = 0.22;
+/** Seconds over which a volume or mute change is smoothed, so it never clicks. */
+const MIX_RAMP = 0.04;
+/** Where limiting starts, dBFS: sound below this passes untouched. */
+const CEILING_DB = -3;
+/** Above the ceiling, 20 dB more going in is 1 dB more coming out. */
+const LIMIT_RATIO = 20;
+/**
+ * A browser's compressor always adds "makeup gain", fixed by its settings alone (Web Audio spec,
+ * DynamicsCompressorNode): the gain it would apply to a full-scale signal, inverted, to the power 0.6.
+ * Taking exactly that back out is what lets quiet sound through at its own level.
+ */
+const MAKEUP_GAIN = (() => {
+  const fullScaleOutDb = CEILING_DB * (1 - 1 / LIMIT_RATIO);
+  return Math.pow(10, -fullScaleOutDb / 20) ** 0.6;
+})();
 
 const SAMPLE_NOTES = [
   "A0",
@@ -37,7 +52,6 @@ const SAMPLE_NOTES = [
   "C8",
 ];
 
-export type HandLevel = "on" | "soft" | "off";
 export type PianoStatus = "idle" | "loading" | "ready" | "failed";
 
 interface Instrument {
@@ -49,15 +63,22 @@ interface Instrument {
 export interface VoicesOptions {
   sound: SoundId;
   stereo: boolean;
-  levels: Record<Hand, HandLevel>;
+  mix?: Mix;
   /** Called as the sampled grand piano loads, is ready, or fails. */
   onPiano?: (status: PianoStatus) => void;
 }
 
 /**
- * The instruments and the two hand channels: everything that makes a sound.
- * The player schedules; this plays. Built on whichever Tone context is current
- * when it is constructed, so it works the same live and inside `Tone.Offline`.
+ * The instruments and the mixer: everything that makes a sound. The player schedules; this plays.
+ *
+ *   instrument ─► hand gain ─► hand pan ─┐
+ *   instrument ─► hand gain ─► hand pan ─┼─► master ─► limiter ─► output
+ *   click ───────────────────────────────┘
+ *
+ * The limiter only acts on peaks that would otherwise clip, such as a full two-handed chord at top
+ * volume. (Tone's own `Limiter` has a 30 dB soft knee and lets such a chord through 3 dB over full
+ * scale, so this is a hard-knee compressor with its makeup gain taken back out.) Built on whichever Tone context is current when it is constructed, so it works the same
+ * live and inside `Tone.Offline`.
  */
 export class Voices implements Sink {
   piano: PianoStatus = "idle";
@@ -67,17 +88,29 @@ export class Voices implements Sink {
   private instruments: Partial<Record<`${Hand}:${SoundId}`, Instrument>> = {};
   private pianoBuffers: Tone.ToneAudioBuffers | null = null;
   private clickSynth: Tone.Synth | null = null;
+  private master: Tone.Gain;
+  private limiter: Tone.Compressor;
+  private output: Tone.Gain;
   private onPiano: (status: PianoStatus) => void;
 
   constructor(opts: VoicesOptions) {
     this.sound = opts.sound;
     this.onPiano = opts.onPiano ?? (() => {});
-    const mk = () => {
-      const p = new Tone.Panner(0).toDestination();
-      return { gain: new Tone.Gain(1).connect(p), pan: p };
+    this.output = new Tone.Gain(1 / MAKEUP_GAIN).toDestination();
+    this.limiter = new Tone.Compressor({
+      threshold: CEILING_DB,
+      ratio: LIMIT_RATIO,
+      knee: 0,
+      attack: 0.003,
+      release: 0.1,
+    }).connect(this.output);
+    this.master = new Tone.Gain(1).connect(this.limiter);
+    const mix = opts.mix ?? defaultMix();
+    const mk = (hand: Hand) => {
+      const p = new Tone.Panner(0).connect(this.master);
+      return { gain: new Tone.Gain(gainOf(mix[hand])).connect(p), pan: p };
     };
-    this.channels = { L: mk(), R: mk() };
-    this.setLevels(opts.levels);
+    this.channels = { L: mk("L"), R: mk("R") };
     this.setStereo(opts.stereo);
     if (this.sound === "piano") this.loadPiano();
   }
@@ -93,7 +126,7 @@ export class Voices implements Sink {
       oscillator: { type: "sine" },
       envelope: { attack: 0.001, decay: 0.05, sustain: 0, release: 0.02 },
       volume: -8,
-    }).toDestination();
+    }).connect(this.master);
     this.clickSynth.triggerAttackRelease(accent ? 1760 : 1175, 0.03, when, accent ? 1 : 0.6);
   }
 
@@ -108,10 +141,12 @@ export class Voices implements Sink {
     if (sound === "piano") this.loadPiano();
   }
 
-  setLevels(levels: Record<Hand, HandLevel>) {
-    for (const h of ["L", "R"] as Hand[]) {
-      this.channels[h].gain.gain.rampTo(levels[h] === "soft" ? SOFT_GAIN : 1, 0.05);
-    }
+  /**
+   * Set one hand's volume and mute. The change is smoothed over a few hundredths of a second.
+   * `when` is an audio-clock time, for changes scheduled ahead (offline renders use it).
+   */
+  setHandMix(hand: Hand, mix: HandMix, when?: number) {
+    this.channels[hand].gain.gain.rampTo(gainOf(mix), MIX_RAMP, when);
   }
 
   setStereo(stereo: boolean) {
@@ -135,6 +170,9 @@ export class Voices implements Sink {
       c.gain.dispose();
       c.pan.dispose();
     }
+    this.master.dispose();
+    this.limiter.dispose();
+    this.output.dispose();
   }
 
   // ---- internals -------------------------------------------------------------

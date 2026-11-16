@@ -1,11 +1,12 @@
 import * as Tone from "tone";
 import type { Hand, Note, Song, SoundId } from "../song/types";
+import { defaultMix, sanitizeMix, type Mix } from "./mix";
 import { clamp, MIN_LOOP, playRange, type LoopRange, type TimeRange } from "./range";
-import type { Sink } from "./types";
-import { Voices, type HandLevel, type PianoStatus } from "./voices";
+import type { HandMix, Sink } from "./types";
+import { Voices, type PianoStatus } from "./voices";
 
 export { clamp, playRange };
-export type { HandLevel, LoopRange, SoundId, TimeRange };
+export type { HandMix, LoopRange, Mix, SoundId, TimeRange };
 
 const LOOKAHEAD = 0.15; // seconds of real time scheduled ahead
 const TICK_MS = 25;
@@ -27,7 +28,8 @@ export interface PlayerState {
   loop: LoopRange;
   /** The visible part of the timeline while zoomed in; it loops too. */
   window: TimeRange | null;
-  levels: Record<Hand, HandLevel>;
+  /** Each hand's volume and mute. */
+  mix: Mix;
   sound: SoundId;
   /** Status of the sampled grand piano, which needs a download. */
   piano: PianoStatus;
@@ -66,7 +68,7 @@ export class Player {
       rate: 1,
       loop: { enabled: false, start: 0, end: this.duration },
       window: null,
-      levels: { L: "on", R: "on" },
+      mix: defaultMix(),
       sound: prefs.sound ?? "clear",
       piano: "idle",
       stereo: prefs.stereo ?? false,
@@ -75,7 +77,7 @@ export class Player {
     this.voices = new Voices({
       sound: this._state.sound,
       stereo: this._state.stereo,
-      levels: this._state.levels,
+      mix: this._state.mix,
       onPiano: (piano) => this.update({ piano }),
     });
     this.sink = this.voices;
@@ -206,13 +208,33 @@ export class Player {
     if (t < r.start || t >= r.end) this.seek(r.start);
   }
 
-  setLevel(hand: Hand, level: HandLevel) {
-    this.setLevels({ ...this._state.levels, [hand]: level });
+  /** Set a hand's volume, 0 to 1 on the slider. Moving the slider un-mutes the hand. */
+  setVolume(hand: Hand, volume: number) {
+    this.setHand(hand, { volume: clamp(volume, 0, 1), muted: false });
   }
 
-  setLevels(levels: Record<Hand, HandLevel>) {
-    this.update({ levels });
-    this.voices.setLevels(levels);
+  /** Mute or un-mute a hand. Its volume is remembered. */
+  setMuted(hand: Hand, muted: boolean) {
+    this.setHand(hand, { ...this._state.mix[hand], muted });
+  }
+
+  toggleMute(hand: Hand) {
+    this.setMuted(hand, !this._state.mix[hand].muted);
+  }
+
+  setMix(mix: Mix) {
+    const clean = sanitizeMix(mix);
+    if (!clean) return;
+    this.update({ mix: clean });
+    this.voices.setHandMix("L", clean.L);
+    this.voices.setHandMix("R", clean.R);
+  }
+
+  private setHand(hand: Hand, m: HandMix) {
+    const now = this._state.mix[hand];
+    if (now.volume === m.volume && now.muted === m.muted) return;
+    this.update({ mix: { ...this._state.mix, [hand]: m } });
+    this.voices.setHandMix(hand, m);
   }
 
   setSound(sound: SoundId) {
@@ -255,7 +277,7 @@ export class Player {
   // ---- internals -----------------------------------------------------------
 
   private trigger(n: Note, dur: number, when: number) {
-    if (this._state.levels[n.hand] === "off") return;
+    // A muted hand is still scheduled; only its gain is zero. Un-muting mid-note brings it straight back.
     this.sink.play(n.pitch, Math.max(dur, 0.05), n.velocity ?? 0.7, { hand: n.hand }, when);
   }
 

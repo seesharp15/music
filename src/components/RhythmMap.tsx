@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { HandLevel, Player } from "../audio/player";
+import { lookOf } from "../audio/mix";
+import type { Mix, Player } from "../audio/player";
 import { countLabel, type Rhythm } from "../song/rhythm";
 import type { Hand } from "../song/types";
 
 interface Props {
   player: Player;
   rhythm: Rhythm;
-  levels: Record<Hand, HandLevel>;
+  mix: Mix;
   duration: number;
 }
 
@@ -23,7 +24,7 @@ interface Cell {
  * per hand on a shared count ("1 & 2 & …"). Columns where both hands strike
  * together are marked as sync points.
  */
-export function RhythmMap({ player, rhythm, levels, duration }: Props) {
+export function RhythmMap({ player, rhythm, mix, duration }: Props) {
   const barLen = rhythm.beat * rhythm.perBar;
   const cellsPerBar = rhythm.perBar * rhythm.sub;
   const lastBar = Math.max(0, Math.floor(duration / barLen));
@@ -99,8 +100,8 @@ export function RhythmMap({ player, rhythm, levels, duration }: Props) {
                     title={describe(c)}
                     aria-label={`Bar ${bar + b + 1}, count ${countLabel(rhythm, i)}: ${describe(c)}`}
                   >
-                    <span className={`dot r ${c.hands.has("R") ? "is-hit" : ""} lvl-${levels.R}`} />
-                    <span className={`dot l ${c.hands.has("L") ? "is-hit" : ""} lvl-${levels.L}`} />
+                    <span className={`dot r ${c.hands.has("R") ? "is-hit" : ""} lvl-${lookOf(mix.R)}`} />
+                    <span className={`dot l ${c.hands.has("L") ? "is-hit" : ""} lvl-${lookOf(mix.L)}`} />
                     <span className="count mono">{countLabel(rhythm, i)}</span>
                   </button>
                 );
