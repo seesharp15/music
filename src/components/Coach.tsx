@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { LoopRange, Player } from "../audio/player";
 import type { Rhythm } from "../song/rhythm";
 import type { Hand } from "../song/types";
@@ -34,13 +34,13 @@ export function Coach({ player, rhythm, loop, syncLines, onSyncLines }: Props) {
   routineRef.current = routine;
   // Which hands were muted before the routine borrowed the mute switches; handed back when it ends.
   const mutedBefore = useRef<Record<Hand, boolean> | null>(null);
-  const handBack = () => {
+  const handBack = useCallback(() => {
     const was = mutedBefore.current;
     mutedBefore.current = null;
     if (!was) return;
     player.setMuted("L", was.L);
     player.setMuted("R", was.R);
-  };
+  }, [player]);
 
   // Advance the routine each time the loop comes around.
   useEffect(
@@ -62,7 +62,7 @@ export function Coach({ player, rhythm, loop, syncLines, onSyncLines }: Props) {
         if (stage !== r.stage) applyStage(player, STAGES[stage]);
         setRoutine({ stage, pass });
       }),
-    [player],
+    [player, handBack],
   );
 
   const startRoutine = (stage = 0) => {

@@ -25,6 +25,7 @@ test("practise a song: play, loop a section, step, change speed, and pick up aft
       .catch(() => "(no body)");
     throw new Error(
       `${(e as Error).message}\n\nThe page shows:\n${said}\n\nProblems:\n${problems.join("\n") || "(none)"}`,
+      { cause: e },
     );
   }
   await playerReady(page);
