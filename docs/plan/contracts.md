@@ -118,14 +118,20 @@ export interface Song {
   gridOffset?: number;
   /** Present only when tempo changes; `bpm` stays the nominal value shown in the UI. */
   tempoMap?: { time: number; bpm: number }[];
-  tracks?: { id: string; name: string; role: TrackRole; sound?: SoundId }[];
+  /** `volume` is the track's slider position where the song was written, 0..1. Default 1. */
+  tracks?: { id: string; name: string; role: TrackRole; sound?: SoundId; volume?: number }[];
   chords?: { time: number; duration: number; symbol: string }[];
-  drums?: { kit: string; hits: { pad: DrumPadId; time: number; velocity?: number }[] };
+  drums?: { kit: string; volume?: number; hits: { pad: DrumPadId; time: number; velocity?: number }[] };
   /** Sustain pedal as written or transcribed. Stage 1's toggle ignores this; Stage 9 plays it. */
   pedal?: { time: number; down: boolean }[];
   origin?: { kind: "bank" | "studio" | "import"; projectId?: string; createdAt?: string };
 }
 ```
+
+A song's `bpm` (and each `tempoMap` entry) counts **the beat its time signature names**: a song in 6/8
+at `bpm: 160` has 160 eighth notes a minute, six to the bar. A project's tempo always counts quarter
+notes; `compileProject` and `projectFromSong` convert. A song has one time signature: a project whose
+meter changes compiles with its first.
 
 ### Song index (`public/songs/index.json`)
 
@@ -324,6 +330,19 @@ export function compileProject(p: Project, opts?: {
 /** Song → Project, to edit a bank song or an import. Needs a beat grid; without one, estimates it. */
 export function projectFromSong(song: Song, opts?: { ppqGrid?: 16 | 32 }): Project;
 ```
+
+What compiles: every note track and drum track that is not muted (or exactly the tracks named in
+`opts.tracks`, muted or not). A note is heard at its tick moved by swing and groove, plus its `offset`
+times its track's `feel`; its end is swung too, so a swung pair stays long–short. Drum patterns are
+laid out clip by clip, their columns dividing whatever bar they land on. A pending rhythm and parked
+ideas are never compiled. With `range`, only what starts inside it, cut off at its end.
+
+`projectFromSong` files each note on the nearest grid line and keeps the remainder in `offset`
+(rounded to a tick), so `compileProject(projectFromSong(song))` gives every note back within a tick or
+two — about a millisecond. A v2 song's tracks, chords, sections, drums and tempo changes are rebuilt; a
+v1 song's right hand becomes a Melody track and its left a Chords track. A song with no tempo gets an
+estimated grid and `source.gridGuessed`; one with no key gets the best-fitting key and a line in
+`source.warnings`. A song whose first downbeat comes late (`gridOffset`) gets a whole first bar.
 
 Rules `compileProject` guarantees: output passes `normalize()`; notes are sorted by time then pitch;
 `hand` is the note's override or its track's hand; `track` is the track id; the song id is

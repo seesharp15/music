@@ -322,3 +322,30 @@ which S2.6 then implements over IndexedDB. Criterion 7 is therefore checked in S
 WebKit has not been run locally (it is not installed in the build environment): the storage tests'
 first WebKit run is in CI.
 
+### S2.4 — compile and decompile
+
+- **Muted tracks are not compiled**, unless `opts.tracks` names them. A compiled song is what will be
+  heard; and so that it also carries how loud each part was, `Song.tracks[]` and `Song.drums` gain an
+  optional `volume` (contract change, additive), which S2.5's player takes as its starting mix.
+- **A note's end is swung as well as its start**, so two swung eighths stay long–short and meet end to
+  end; offsets then move the whole note.
+- **A song's `bpm` counts the beat of its time signature**, which is what Practice's arithmetic has
+  always assumed (`60 / bpm` seconds a beat, `timeSignature[0]` beats a bar). A project in 6/8 at 80
+  quarter notes a minute therefore compiles to `bpm: 160`. Now stated in contracts §2 and
+  `docs/song-format.md`.
+- **A song has one time signature**, so a project whose meter changes compiles with its first. Notes,
+  drums and tempo are still right; only Practice's bar numbers would drift after the change. Giving the
+  song format a meter map is the fix when a real song needs it; nothing in this stage does.
+- **Drum-pattern columns divide the bar they land on**, read from the time map at each bar of the clip,
+  so one sixteen-column pattern is sixteenths in 4/4 and fits a bar of 3/4 too.
+- **`projectFromSong` rounds offsets to whole ticks.** At 125 BPM a tick is one millisecond, so a note
+  comes back within half a millisecond of its start and one of its length.
+- **A late first downbeat (`gridOffset`) becomes a whole first bar**, so a pickup has somewhere to sit
+  and nothing lands before tick 0. Compiling such a project gives the song back later by that lead.
+- **A song with no `key`** gets the best fit from `detectKey`, with a line in `source.warnings` saying
+  it was worked out, not given.
+
+| # | Result |
+| --- | --- |
+| 8 | Pass — `src/project/compile.test.ts`: all 1,400 notes of Rewrite the Stars come back within 2 ms of their start and length, with their velocity, hand and section names; fewer than 5% needed an offset of more than ten ticks. Divenire (free time, 2,996 notes) also comes back within 2 ms on its guessed grid, flagged `gridGuessed`. |
+

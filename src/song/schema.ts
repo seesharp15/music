@@ -41,6 +41,7 @@ export const SongSchema = z.object({
         name: z.string(),
         role: z.enum(["melody", "chords", "bass", "counter", "free"]),
         sound: z.enum(SOUND_IDS).optional(),
+        volume: z.number().min(0).max(1).optional(),
       }),
     )
     .optional(),
@@ -48,6 +49,7 @@ export const SongSchema = z.object({
   drums: z
     .object({
       kit: z.string(),
+      volume: z.number().min(0).max(1).optional(),
       hits: z.array(z.object({ pad: z.enum(DRUM_PADS), time: seconds, velocity: z.number().min(0).max(1).optional() })),
     })
     .optional(),

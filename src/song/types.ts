@@ -61,9 +61,10 @@ export interface Song {
   gridOffset?: number;
   /** Present only when tempo changes; `bpm` stays the nominal value shown in the UI. */
   tempoMap?: { time: number; bpm: number }[];
-  tracks?: { id: string; name: string; role: TrackRole; sound?: SoundId }[];
+  /** `volume` is the track's slider position, 0..1, as set where the song was written. Default 1. */
+  tracks?: { id: string; name: string; role: TrackRole; sound?: SoundId; volume?: number }[];
   chords?: { time: number; duration: number; symbol: string }[];
-  drums?: { kit: string; hits: { pad: DrumPadId; time: number; velocity?: number }[] };
+  drums?: { kit: string; volume?: number; hits: { pad: DrumPadId; time: number; velocity?: number }[] };
   /** Sustain pedal as written or transcribed. Stage 1's toggle ignores this; Stage 9 plays it. */
   pedal?: { time: number; down: boolean }[];
   origin?: { kind: "bank" | "studio" | "import"; projectId?: string; createdAt?: string };
