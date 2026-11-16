@@ -88,9 +88,52 @@ for (const sound of SYNTHS) {
   });
 }
 
-test("grand piano: a released note rings on, dies away, and stops when the pedal lifts", async ({ page }) => {
+/**
+ * The grand piano is a recording, and a recorded string dies away at its own pace: a second and a
+ * half after a short middle C it is already some 25 dB down, pedal or no pedal. So it is not held to
+ * the synthesized sounds' figure. The right question for it is whether the pedal behaves like a held
+ * key: a short note under the pedal should sound like the same note with the key kept down.
+ */
+test("grand piano: under the pedal a short note rings like a held one, then stops when the pedal lifts", async ({
+  page,
+}) => {
   test.skip(!(await pianoAvailable(page)), "the piano samples' host cannot be reached from here");
-  expectPedalEnvelope(await envelope(page, "piano"));
+  const m = await page.evaluate(
+    async ({ song, end }) => {
+      const { renderOffline, levelDb } = await window.__app!.testing();
+      const at = (r: Awaited<ReturnType<typeof renderOffline>>, t: number) => levelDb(r, t, t + 0.05);
+      const held = { ...song, notes: [{ ...song.notes[0], duration: 9 }] };
+      const pedal = await renderOffline(song, { sound: "piano", seconds: 9.5, sustain: true });
+      const key = await renderOffline(held, { sound: "piano", seconds: 9.5 });
+      const off = await renderOffline(song, { sound: "piano", seconds: 3 });
+      const lifted = await renderOffline(song, { sound: "piano", seconds: 3, sustain: true, dampAt: [1.0] });
+      const ref = at(pedal, end - 0.05);
+      return {
+        sameWhileHeld: ref - at(off, end - 0.05),
+        // The pedal against the held key, at the same moments.
+        vsHeld05: at(pedal, end + 0.5) - at(key, end + 0.5),
+        vsHeld15: at(pedal, end + 1.5) - at(key, end + 1.5),
+        vsHeld30: at(pedal, end + 3) - at(key, end + 3),
+        // For the record: how fast the recording itself dies away.
+        heldDrop15: at(key, end + 1.5) - at(key, end - 0.05),
+        pedalDrop15: at(pedal, end + 1.5) - ref,
+        on8: at(pedal, end + 8) - ref,
+        off12: at(off, end + 1.2) - at(off, end - 0.05),
+        beforeLift: at(lifted, 0.9) - at(key, 0.9),
+        afterLift: at(lifted, 1.2) - ref,
+      };
+    },
+    { song: shortNote, end: END },
+  );
+  console.log("grand piano under the pedal:", JSON.stringify(m));
+  expect(Math.abs(m.sameWhileHeld), JSON.stringify(m)).toBeLessThan(0.5);
+  expect(m.vsHeld05, JSON.stringify(m)).toBeGreaterThan(-3); // within 3 dB of a held key…
+  expect(m.vsHeld15, JSON.stringify(m)).toBeGreaterThan(-3);
+  expect(m.vsHeld30, JSON.stringify(m)).toBeGreaterThan(-6); // …the slow fade only starting to tell
+  expect(m.on8, JSON.stringify(m)).toBeLessThan(-50);
+  expect(m.off12, JSON.stringify(m)).toBeLessThan(-40);
+  expect(m.beforeLift, JSON.stringify(m)).toBeGreaterThan(-3);
+  expect(m.afterLift, JSON.stringify(m)).toBeLessThan(-60);
 });
 
 async function densePassage(page: Page, sound: Sound, sustain: boolean) {
