@@ -251,4 +251,92 @@ or coordinate.
 
 ## Build notes
 
-_Empty._
+Built 16 November 2026. What differed from the plan, what was found, and what is not yet verified.
+
+### Library
+
+- **The thumbnail is density, not coverage.** The plan described `preview` as "the share of each slice
+  with notes sounding". For piano music that is close to 1 everywhere and draws a flat bar. It is the
+  total time notes sound in each slice — a chord counts once per note — scaled to the busiest slice.
+- **Continue needs a second of listening.** Opening a song and leaving at once does not list it. And
+  because a new tab has no session, Practice falls back to the position the Library remembers, so
+  "Resume at 2:41" is true there too.
+- **The two menus have explicit names** ("Difficulty", "Sort by"). A label wrapped round a `<select>`
+  takes the selected option into its accessible name.
+- **The genre chips are drawn while loading** (just "All"), or the cards shift down 44 px when the
+  genres arrive. The first version failed its own layout-shift test on exactly this.
+- **Not built:** windowed rendering past about 300 cards, as the plan allows.
+
+### Hand volume
+
+- **Tone's `Limiter` does not limit** in any useful sense here. It is a compressor with a 30 dB soft
+  knee: a ten-note fortissimo chord on the Soft sound peaked at +3.3 dBFS before it and +3.3 after. The
+  master limiter is instead a hard-knee compressor at −3 dBFS, ratio 20, with the browser's fixed
+  "makeup gain" divided back out (the Web Audio specification defines it from the settings alone).
+  Measured against the build before it: quiet material is unchanged to two decimal places in peak
+  level, and that chord now peaks at −1.6 dBFS. The plan's "ceiling −1 dBFS" became −3 to leave room
+  for the compressor's attack.
+- **The practice routine hands back the mute switches as it found them**, including a hand that was
+  muted before it started. It never touches volume, so "restores the mix" in the plan reduces to this.
+- **Soft migrates to 47%**, as planned; the unit test checks that this is the old loudness.
+
+### Sustain
+
+- **Tone's release times do not mean what they say.** Its exponential release approaches zero with a
+  time constant of ln(release + 1) / ln(200). A "4 second" release is 40 dB down after 1.5 s — a short
+  tail, not a held pedal. The ring's nominal release (about 100 s) is worked backwards from the decay
+  wanted: 60 dB in 6 s.
+- **`PolySynth` cannot be used under the pedal.** It drops notes past its voice limit instead of
+  stealing, and it cannot cut a ring short when the key is struck again. Each hand keeps its own pool
+  of up to 48 voices while the pedal is down (`RingBank` in `src/audio/voices.ts`): a key struck again
+  takes over its own ring, and when every voice is busy the one nearest silence is reused. Without the
+  pedal nothing changed: the same `PolySynth` as before.
+- **Lifting the pedal** fades the bank to silence in 120 ms and starts a fresh one; the old bank is
+  disposed of once silent. A key still held at that instant is cut too, as the plan accepts.
+- **The loop-wrap damp needed a contract change:** `Sink.damp(when?)`, optional (contracts §6,
+  changelog). The player calls it at every wrap; with the pedal up it finds nothing to do.
+- **The sampled piano rings on its own decay.** Under the pedal its notes get a slow, straight
+  seven-second fade and otherwise sound as recorded.
+- **Measured** (offline render, four synthesized sounds): held level identical with and without the
+  pedal (within 0.05 dB); 15.6–16.3 dB down at 1.5 s; silent by 8 s; silent 200 ms after the pedal
+  lifts; Divenire's densest 20 s (263 notes) drops nothing and peaks at −3.9 dBFS or lower.
+- **The electric piano is the costly sound, pedal or no pedal.** Rendering the dense passage offline
+  ran at about 2× real time for it on the build machine, against 9–11× for Clear — the same with and
+  without sustain, so this stage did not make it worse, but it is the sound to try first on a slow
+  phone.
+
+### Bundle
+
+Practice downloads 130.4 KB of JavaScript, gzipped: +8.0 KB over the app before Stage 0 (+3.2 KB in
+this stage). The Library downloads 54.3 KB and no audio code at all, so the first screen is now less
+than half the size of the old one.
+
+### Acceptance
+
+| # | Result |
+| --- | --- |
+| 1–4, 6, 7 | Pass — `e2e/library.spec.ts`, `e2e/routes.spec.ts`. |
+| 5 | Pass — the command exits 1 on a changed song and 0 once refreshed; unit test in `scripts/lib/`. |
+| 8, 9 | Pass — `e2e/audio/mix.spec.ts`: 12 dB at half, 24 dB at a quarter, silence when muted, no click. |
+| 10 | Pass — unit test in `src/session.test.ts` and a browser test. |
+| 11 | Pass — `e2e/hands.spec.ts`. |
+| 12 | Pass by keyboard, mouse and emulated touch at 390 px; **not yet tried on a real phone.** |
+| 13, 14 | Pass on the four synthesized sounds. Grand piano: **open** — see "Not verified". |
+| 15 | Pass on all five sounds (the grand piano in CI, where its samples can be downloaded). |
+| 16 | Pass — `e2e/sustain.spec.ts`. |
+| 17 | Pass — the Stage 0 scheduling tests are unchanged and green; one more checks that the pedal does not move any note. |
+
+### Not verified
+
+- **A real iPhone.** Everything above was measured in desktop Chromium. The plan asks the owner to try
+  each milestone on a phone; this is that moment (M1).
+- **By ear.** The sustain's numbers are right; whether a six-second ring *sounds* right on each of the
+  five sounds is a listening judgement. `RING_T60` in `src/audio/voices.ts` is the one number to change.
+- **The grand piano against criterion 13.** Its samples cannot be downloaded in the session this was
+  built in, so it is tested in CI only. There, a short middle C under the pedal was 27 dB below its
+  level at release after 1.5 s, where the criterion allows 20. The likely reason is that a recorded
+  string simply dies away that fast, in which case the figure is wrong for a real piano and not the
+  code. That is being checked rather than assumed: the piano's test now compares the pedal with the
+  same note held down by the key, and prints what it measures. If the two agree, the criterion should
+  read "like a held key" for the sampled piano, which is the owner's call to accept.
+- **WebKit.** See Stage 0's build notes: its smoke test does not pass in CI yet.
