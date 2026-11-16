@@ -185,6 +185,11 @@ Built 15–16 November 2026. What differed from the plan, and why.
 - **Three `react-hooks/exhaustive-deps` warnings** remain on existing components. They describe
   deliberate patterns; changing them is behaviour change and outside this stage.
 - **Playwright is pinned to 1.63.0**, the version whose browser is preinstalled in cloud sessions.
+- **Seen while testing, not changed:** whatever falls exactly on the position playback starts from —
+  the metronome's first click, or a note at the very start of a loop — cannot be asked for in the past,
+  so it sounds a few milliseconds after the rest of the timeline says it should (about 10 ms on a busy
+  CI machine). Everything after it is exact. It has always been so; anchoring playback a few
+  milliseconds ahead would remove it, and S2.5 is the place to do that.
 - **Bundle (criterion 6):** before this stage Practice downloaded 122.4 KB of JavaScript, gzipped, in
   one file. After it, 127.1 KB in three: +4.8 KB, of which the router is about 2.
 

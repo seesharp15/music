@@ -128,12 +128,14 @@ test.describe("by touch", () => {
     await page.getByRole("button", { name: "Mute right hand" }).tap();
     expect((await mix(page)).R.muted).toBe(false);
 
+    // Tap a quarter of the way along. The locator waits for the page to stop moving first: reading
+    // the slider's position and tapping the screen there as two steps can miss while it scrolls.
     const slider = page.getByRole("slider", { name: "Left hand volume" });
     const box = (await slider.boundingBox())!;
-    await page.touchscreen.tap(box.x + box.width * 0.25, box.y + box.height / 2);
+    await slider.tap({ position: { x: box.width * 0.25, y: box.height / 2 } });
+    await expect.poll(async () => (await mix(page)).L.volume).toBeLessThan(0.4);
     const left = (await mix(page)).L;
     expect(left.muted).toBe(false);
     expect(left.volume).toBeGreaterThan(0.1);
-    expect(left.volume).toBeLessThan(0.4);
   });
 });
