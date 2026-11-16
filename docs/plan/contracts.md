@@ -431,6 +431,8 @@ export interface Sink {
   play(pitch: number, duration: number, velocity: number, ch: Channel, when: number): void;
   click(accent: boolean, when: number): void;
   releaseAll(): void;
+  /** Silence notes ringing on under the sustain pedal, without lifting it. A loop coming round uses it. */
+  damp?(when?: number): void;
 }
 ```
 
