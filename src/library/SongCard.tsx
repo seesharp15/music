@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { SongIndexEntry } from "../song/types";
 import { clock, GENRE_LABEL } from "./filter";
 import type { Recent } from "./recent";
@@ -26,13 +27,31 @@ function Difficulty({ level }: { level: number }) {
 }
 
 /** One song. The whole card is a link, so middle-click, long-press and the keyboard all just work. */
-export function SongCard({ entry, recent }: { entry: SongIndexEntry; recent?: Recent }) {
+export function SongCard({ entry, recent, menu }: { entry: SongIndexEntry; recent?: Recent; menu?: ReactNode }) {
   const facts = [
     entry.duration ? clock(entry.duration) : null,
     entry.bpm ? `${entry.bpm} BPM` : null,
     entry.key ?? null,
   ].filter(Boolean);
   const progress = recent && recent.duration > 0 ? Math.min(1, recent.time / recent.duration) : null;
+  // With a menu beside it, the card is a box holding the link and the menu; otherwise it is the link.
+  if (menu) {
+    return (
+      <div className="song-card has-menu">
+        <a className="card-link" href={`#/play/${entry.id}`}>
+          <Thumbnail preview={entry.preview} />
+          <span className="card-title">{entry.title}</span>
+          {entry.artist && <span className="card-artist">{entry.artist}</span>}
+          <span className="card-meta">
+            <span className="mono">{facts.join(" · ")}</span>
+            {entry.difficulty && <Difficulty level={entry.difficulty} />}
+            {entry.genre && <span className="card-genre">{GENRE_LABEL[entry.genre]}</span>}
+          </span>
+        </a>
+        {menu}
+      </div>
+    );
+  }
   return (
     <a className="song-card" href={`#/play/${entry.id}`}>
       <Thumbnail preview={entry.preview} />

@@ -3,6 +3,7 @@ import { ConfirmDialog, PromptDialog } from "../app/ui/Dialog";
 import { Menu } from "../app/ui/Menu";
 import type { ProjectMeta } from "../project/meta";
 import { listProjects } from "../storage";
+import { pickAndImport, practiceStored } from "../studio/io";
 import {
   createProject,
   duplicateProject,
@@ -57,6 +58,23 @@ export default function MySongs({ heading = "h2" }: { heading?: "h1" | "h2" }) {
     }
   };
 
+  const importOne = async () => {
+    setNotice(null);
+    try {
+      const result = await pickAndImport();
+      if (!result) return;
+      if (!result.ok) return setNotice(result.message);
+      setNotice(
+        result.from === "midi"
+          ? `“${result.project.title}” was brought in from the MIDI file. Open it to check the hands and the key.`
+          : `“${result.project.title}” was imported.`,
+      );
+    } catch (e) {
+      setNotice(`The file could not be imported (${e instanceof Error ? e.message : String(e)}).`);
+    }
+    await refresh();
+  };
+
   const Heading = heading;
   const projects = state.status === "ready" ? state.projects : [];
   return (
@@ -70,7 +88,7 @@ export default function MySongs({ heading = "h2" }: { heading?: "h1" | "h2" }) {
         </p>
       )}
       {notice && (
-        <p className="mysongs-notice" role="alert">
+        <p className={`mysongs-notice ${/imported|brought in/.test(notice) ? "is-good" : ""}`} role="status">
           {notice}
         </p>
       )}
@@ -82,10 +100,18 @@ export default function MySongs({ heading = "h2" }: { heading?: "h1" | "h2" }) {
           <span className="card-title">New song</span>
           <span className="card-artist">Start from an empty page</span>
         </button>
+        <button className="song-card new-song" onClick={() => void importOne()}>
+          <span className="new-song-plus" aria-hidden>
+            ↥
+          </span>
+          <span className="card-title">Import a file</span>
+          <span className="card-artist">A song or project file, or MIDI</span>
+        </button>
         {projects.map((p) => (
           <ProjectCard
             key={p.id}
             project={p}
+            onPractice={() => void act(() => practiceStored(p.id), "That song could not be opened in Practice.")}
             onRename={() => setDialog({ kind: "rename", project: p })}
             onDelete={() => setDialog({ kind: "delete", project: p })}
             onDuplicate={() => void act(() => duplicateProject(p.id), "That song could not be copied.")}
@@ -121,6 +147,7 @@ export default function MySongs({ heading = "h2" }: { heading?: "h1" | "h2" }) {
 
 function ProjectCard(props: {
   project: ProjectMeta;
+  onPractice: () => void;
   onRename: () => void;
   onDuplicate: () => void;
   onExport: () => void;
@@ -149,6 +176,7 @@ function ProjectCard(props: {
         className="project-menu"
         items={[
           { label: "Edit", onSelect: () => (window.location.hash = studioHref(p.id)) },
+          { label: "Practice", onSelect: props.onPractice },
           { label: "Rename…", onSelect: props.onRename },
           { label: "Duplicate", onSelect: props.onDuplicate },
           { label: "Export", onSelect: props.onExport },

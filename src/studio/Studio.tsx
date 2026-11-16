@@ -3,6 +3,7 @@ import { ConfirmDialog, Dialog, PromptDialog } from "../app/ui/Dialog";
 import { Menu } from "../app/ui/Menu";
 import { exposeStudio } from "../app/testHooks";
 import { exportProject } from "../storage";
+import { exportBankSong, exportMidi, storeForPractice } from "./io";
 import { ChordPicker } from "./chords/ChordPicker";
 import { installCommands, SHORTCUTS } from "./commands";
 import { EditorCanvas } from "./EditorCanvas";
@@ -11,7 +12,7 @@ import { SessionContext, useSession, useStoreState, useUi } from "./context";
 import { FirstRun } from "./FirstRun";
 import { SectionsSheet } from "./sections/SectionsSheet";
 import { Inspector } from "./Inspector";
-import { duplicateProject, removeProject, studioHref } from "./projects";
+import { duplicateProject, practiceHref, removeProject, studioHref } from "./projects";
 import type { Session } from "./session";
 import { Sheet } from "./sheets/Sheet";
 import { SongSettings } from "./SongSettings";
@@ -130,7 +131,22 @@ function StudioBar({ wide }: { wide: boolean }) {
   const { store, ui, readOnly } = session;
   const { project, canUndo, canRedo, undoLabel, redoLabel, dirty, saveError } = useStoreState();
   const [dialog, setDialog] = useState<"rename" | "delete" | "keys" | null>(null);
+  const [busy, setBusy] = useState(false);
 
+  /** Practice it: compile, keep the song where Practice finds it, and go there. */
+  const practise = async () => {
+    setBusy(true);
+    try {
+      await store.flush();
+      await storeForPractice(store.getState().project);
+      window.location.hash = practiceHref(project.id);
+    } catch (e) {
+      setBusy(false);
+      ui.setState({
+        announcement: `It could not be made ready to practise (${e instanceof Error ? e.message : String(e)}).`,
+      });
+    }
+  };
   const duplicate = async () => {
     await store.flush();
     const copy = await duplicateProject(project.id);
@@ -162,6 +178,14 @@ function StudioBar({ wide }: { wide: boolean }) {
       {!readOnly && (
         <>
           <button
+            className="practice-btn"
+            disabled={busy}
+            onClick={() => void practise()}
+            title="Open this song in Practice, with left and right hands"
+          >
+            Practice it
+          </button>
+          <button
             className="menu-btn"
             disabled={!canUndo}
             aria-label={undoLabel ? `Undo ${lower(undoLabel)}` : "Undo"}
@@ -192,6 +216,8 @@ function StudioBar({ wide }: { wide: boolean }) {
               { label: "Rename…", onSelect: () => setDialog("rename") },
               { label: "Duplicate", onSelect: () => void duplicate() },
               { label: "Export project", onSelect: () => exportProject(store.getState().project) },
+              { label: "Export as MIDI", onSelect: () => exportMidi(store.getState().project) },
+              { label: "Export song for the bank", onSelect: () => exportBankSong(store.getState().project) },
               { label: "Keyboard shortcuts", onSelect: () => setDialog("keys") },
               { label: "Delete…", danger: true, onSelect: () => setDialog("delete") },
             ]}

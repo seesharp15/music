@@ -13,3 +13,10 @@
 .project-card .card-thumb { fill: #ffcc00; }
 .project-card .card-title { padding-right: 40px; }
 .project-menu { position: absolute; right: 4px; bottom: 4px; }
+.mysongs-notice.is-good { color: #8fe0ae; }
+.song-card.has-menu { position: relative; padding: 0; }
+.card-link { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 12px; color: inherit; text-decoration: none; border-radius: var(--radius); }
+.card-link:hover { background: var(--surface-2); }
+.card-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.has-menu .card-genre { margin-right: 40px; }
+.card-failed { display: block; padding: 0 12px 10px; color: #ff8a80; font-size: 0.8rem; }

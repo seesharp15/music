@@ -78,6 +78,8 @@ test("rename, duplicate and delete from a card's menu, by mouse and by keyboard"
   await page.keyboard.press("Enter");
   await expect(page.getByRole("menuitem", { name: "Edit" })).toBeFocused();
   await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("menuitem", { name: "Practice" })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
   await expect(page.getByRole("menuitem", { name: "Rename…" })).toBeFocused();
   await page.keyboard.press("Enter");
   const title = page.getByRole("textbox", { name: "Title" });
@@ -147,7 +149,9 @@ test("the cards fit a small phone, with touch-sized targets, and nothing scrolls
   await page.reload();
   await expect(cards(page)).toHaveCount(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
-  const menu = await page.getByRole("button", { name: /^More for/ }).boundingBox();
+  const menu = await mySongs(page)
+    .getByRole("button", { name: /^More for/ })
+    .boundingBox();
   expect(menu!.width).toBeGreaterThanOrEqual(44);
   expect(menu!.height).toBeGreaterThanOrEqual(44);
 });
