@@ -73,3 +73,38 @@ describe("refreshEntry", () => {
     expect(formatIndex([refreshEntry(once, song([note(0), note(3, 2, 70)]))])).toBe(formatIndex([once]));
   });
 });
+
+describe("the stale-index check", () => {
+  it("notices when a song changes and the index was not refreshed", async () => {
+    const { mkdtempSync, writeFileSync, readFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { rebuildIndex } = await import("./song-index.mjs");
+    const dir = mkdtempSync(join(tmpdir(), "bank-"));
+    const index = join(dir, "index.json");
+    writeFileSync(join(dir, "t.json"), JSON.stringify(song([note(0)])));
+    writeFileSync(index, JSON.stringify([{ id: "t", title: "T", file: "t.json", genre: "pop" }]));
+
+    const first = rebuildIndex(index);
+    expect(first.before).not.toBe(first.after); // never indexed: stale
+    writeFileSync(index, first.after);
+    expect(rebuildIndex(index).before).toBe(rebuildIndex(index).after); // fresh
+
+    writeFileSync(join(dir, "t.json"), JSON.stringify(song([note(0), note(5)]))); // the song grows
+    const stale = rebuildIndex(index);
+    expect(stale.before).not.toBe(stale.after);
+    expect(JSON.parse(stale.after)[0]).toMatchObject({ noteCount: 2, genre: "pop" });
+    expect(JSON.parse(readFileSync(index, "utf8"))[0].noteCount).toBe(1); // checking writes nothing
+  });
+
+  it("refuses an index entry that points at a different song", async () => {
+    const { mkdtempSync, writeFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { rebuildIndex } = await import("./song-index.mjs");
+    const dir = mkdtempSync(join(tmpdir(), "bank-"));
+    writeFileSync(join(dir, "t.json"), JSON.stringify(song([note(0)], { id: "other" })));
+    writeFileSync(join(dir, "index.json"), JSON.stringify([{ id: "t", title: "T", file: "t.json" }]));
+    expect(() => rebuildIndex(join(dir, "index.json"))).toThrow(/its id is "other"/);
+  });
+});

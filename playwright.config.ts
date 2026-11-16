@@ -26,7 +26,8 @@ export default defineConfig({
     ...(withWebKit ? [{ name: "webkit", use: { ...devices["iPhone 14"] }, testMatch: /smoke\.spec\.ts/ }] : []),
   ],
   webServer: {
-    command: `npm run build && npm run preview -- --port ${PORT} --strictPort`,
+    // `npm run test:e2e` builds first; this only serves what was built.
+    command: `npm run preview -- --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
