@@ -50,8 +50,16 @@ export interface TimeMap {
   positionAt(tick: number): { bar: number; beat: number; tick: number };
   tickOfBar(bar: number): number;
   ticksPerBarAt(tick: number): number;
+  /** The meter in force at a tick. */
+  meterAt(tick: number): MeterEvent;
+  /** The tempo in force at a tick, in quarter notes a minute. */
+  bpmAt(tick: number): number;
 }
+export function makeTimeMap(tempo: TempoEvent[], meter: MeterEvent[]): TimeMap;   // src/music/time.ts
 ```
+
+A beat is the note the meter's denominator names (an eighth in 6/8), so `positionAt` counts six beats in
+a bar of 6/8. Tempo is always in quarter notes a minute.
 
 `BeatMap` is the same idea for a `Song` (seconds only), so Practice can count along to songs whose tempo
 moves. It replaces the constant-`bpm` arithmetic in `src/song/rhythm.ts`, `Stage.tsx` and the metronome.

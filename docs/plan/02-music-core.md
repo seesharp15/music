@@ -197,4 +197,31 @@ Playwright against real IndexedDB, including an upgrade from an empty database.
 
 ## Build notes
 
-_Empty._
+Built from 16 November 2026, one package at a time on one branch (`claude/stage-2-implementation-p1wlxt`),
+one commit per package, in the order S2.1, S2.2, S2.6, S2.3, S2.4, S2.5, S2.7 — S2.6 moved up because
+S2.3's autosave needs it.
+
+### S2.1 — musical time
+
+- **`TimeMap` has two more methods**, `meterAt` and `bpmAt` (contract change, additive). `metricWeight`
+  and the groove functions are handed a time map and need to know how its bars divide.
+- **A beat is the meter's denominator**: six beats in a bar of 6/8, each an eighth. Tempo stays in
+  quarter notes a minute everywhere.
+- **A meter change that is not on a bar line starts a new bar where it falls.** The plan does not say;
+  the alternative is a time map that can throw.
+- **Swing is a stretch, not a nudge.** `swingOffset` warps the whole pair of units, so a sixteenth
+  between a beat and a swung off-beat moves in proportion and notes never cross. On the beats it is 0 and
+  on the off-beat eighth of triplet swing it is 80 ticks, as expected.
+- **`grooveOffset` takes a `TimeMap`, not the meter events** the plan's signature shows: it needs bar
+  starts, and every caller already holds the map. `grooveAccent` is its companion for the velocity half
+  of a `Groove`.
+- **`quantizeNotes` with `keepOffset`** quantizes where the note is *heard* (`tick + offset`), files it
+  under the straight grid line, and puts the difference in `offset`: what is heard does not move. Without
+  `keepOffset` the note moves to where its line is heard, swing and groove included.
+- **`estimateTempo`** reads steady taps 0.4 s apart as 75, not 150 — the plan's rule (prefer 70–140 when
+  octave readings fit equally) taken literally; `alternatives` is the one-tap correction. Compound time
+  is reported with the tempo in quarter notes (6/8 at 80 dotted quarters comes back as 120). A stream of
+  even eighths in 6/8 is indistinguishable from 3/4 and is read as 3/4.
+- **On the bank:** Rewrite the Stars comes back as 125.00 BPM, 4/4, straight, confidence 1.0, in 17 ms.
+  Divenire comes back as a guess with confidence 0.04 — which is the honest answer for free time, and is
+  what `projectFromSong` will flag with `gridGuessed`.
