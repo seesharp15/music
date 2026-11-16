@@ -515,7 +515,19 @@ test.describe("playing by hand", () => {
           ({ kind, n }) => (window as unknown as { results: Record<string, unknown[]> }).results[kind].length === n,
           { kind, n: i + 1 },
         );
-        await page.waitForTimeout(1000); // let the note die away, so the next one starts from silence
+        // Let the note die away, so the next one starts from silence: a second by the audio clock,
+        // which on a busy machine runs slower than the wall clock a plain wait would count.
+        await page.evaluate(async () => {
+          const engine = (await window.__app!.testing()).sharedEngine();
+          const until = engine.now() + 1;
+          await new Promise<void>((resolve) => {
+            const id = setInterval(() => {
+              if (engine.now() < until) return;
+              clearInterval(id);
+              resolve();
+            }, 20);
+          });
+        });
       }
     }
     const results = await page.evaluate(

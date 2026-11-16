@@ -18,8 +18,8 @@ import { saveProject } from "./projects";
 import { isUserSongId, saveSong } from "./songs";
 
 /** Hand the user a file to keep. */
-export function download(name: string, text: string, type = "application/json") {
-  const url = URL.createObjectURL(new Blob([text], { type }));
+export function download(name: string, data: BlobPart, type = "application/json") {
+  const url = URL.createObjectURL(new Blob([data], { type }));
   const a = document.createElement("a");
   a.href = url;
   a.download = name;

@@ -1,8 +1,9 @@
 # Piano Tutor → Library, Practice and Studio: the build plan
 
-**Status:** Stages 0 and 1 are built and live; milestone M1 was confirmed by the owner on a phone on
-16 November 2026. Stage 2 is built and awaiting review ([its build notes](02-music-core.md#build-notes)
-say what differed and what the owner should check — Practice in Safari first). Stage 3 is next.
+**Status:** Stages 0 to 2 are built and live; milestone M1 was confirmed by the owner on a phone on
+16 November 2026. Stage 3 (the Studio, by hand) is built behind the `studio` flag and awaiting the
+owner's try at milestone M2 ([its build notes](03-studio-manual.md#build-notes) say what differed and
+what to check — a real phone first). Stages 4, 5 and 7 are next, in any order.
 Decisions are recorded in §9 · **Written:** 15 November 2026
 
 This folder is the plan and specification for growing Piano Tutor from a practice player into a place to

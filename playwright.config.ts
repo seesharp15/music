@@ -17,6 +17,10 @@ export default defineConfig({
     // The built app, with the test hooks switched on (see src/app/flags.ts).
     baseURL: `http://localhost:${PORT}`,
     trace: "off",
+    // The app's service worker keeps its files for offline use. Tests are about the app as the
+    // network serves it, so they run without one; e2e/pwa.spec.ts, which is about the worker,
+    // allows it for itself.
+    serviceWorkers: "block",
   },
   projects: [
     {

@@ -1,0 +1,30 @@
+.mysongs { margin-bottom: 22px; }
+.mysongs-notice { margin: 8px 0 0; color: #ff8a80; font-size: 0.875rem; }
+.song-card.new-song { align-items: flex-start; text-align: left; cursor: pointer; border-style: dashed; }
+.song-card.new-song:hover { background: var(--surface-2); border-color: var(--accent); }
+.new-song-plus {
+  display: grid; place-items: center; width: 100%; height: 44px; margin-bottom: 8px; border-radius: 6px;
+  background: #1b1e25; color: var(--accent); font-size: 1.6rem; line-height: 1;
+}
+.song-card.project-card { position: relative; padding: 0; }
+.project-link { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 12px; color: inherit; text-decoration: none; border-radius: var(--radius); }
+.project-link:hover { background: var(--surface-2); }
+.project-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.project-card .card-thumb { fill: #ffcc00; }
+.project-card .card-title { padding-right: 40px; }
+.project-menu { position: absolute; right: 4px; bottom: 4px; }
+.mysongs-notice.is-good { color: #8fe0ae; }
+.song-card.has-menu { position: relative; padding: 0; }
+.card-link { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 12px; color: inherit; text-decoration: none; border-radius: var(--radius); }
+.card-link:hover { background: var(--surface-2); }
+.card-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.has-menu .card-genre { margin-right: 40px; }
+.card-failed { display: block; padding: 0 12px 10px; color: #ff8a80; font-size: 0.8rem; }
+.mysongs-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.mysongs-settings { color: var(--muted); font-size: 0.8rem; }
+.keep-safe { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.keep-note { padding: 10px 12px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); }
+.keep-note p { margin: 0 0 8px; color: var(--muted); font-size: 0.85rem; line-height: 1.45; }
+.keep-note strong { color: var(--text); font-weight: 600; }
+.keep-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.keep-actions .chip { height: 44px; text-decoration: none; color: inherit; }
