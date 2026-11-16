@@ -1,4 +1,6 @@
 import type { Player } from "../audio/player";
+import type { ProjectStoreHandle } from "../project/store";
+import type { UiStore } from "../studio/ui-store";
 import { flag } from "./flags";
 
 /**
@@ -8,6 +10,9 @@ import { flag } from "./flags";
  */
 export interface AppHooks {
   player: Player | null;
+  /** The project open in the Studio and the editor's own state, while the Studio is on screen. */
+  store: ProjectStoreHandle | null;
+  ui: UiStore | null;
   testing: () => Promise<typeof import("../audio/testing")>;
   /** Projects, storage and the catalog: no audio code, so it loads in any browser. */
   kit: () => Promise<typeof import("./testKit") & { storage: typeof import("../storage") }>;
@@ -25,6 +30,8 @@ function hooks(): AppHooks | null {
   if (!enabled()) return null;
   return (window.__app ??= {
     player: null,
+    store: null,
+    ui: null,
     testing: () => import("../audio/testing"),
     kit: async () => ({ ...(await import("./testKit")), storage: await import("../storage") }),
   });
@@ -38,4 +45,11 @@ export function installTestHooks() {
 export function exposePlayer(player: Player | null) {
   const h = hooks();
   if (h) h.player = player;
+}
+
+export function exposeStudio(session: { store: ProjectStoreHandle; ui: UiStore } | null) {
+  const h = hooks();
+  if (!h) return;
+  h.store = session?.store ?? null;
+  h.ui = session?.ui ?? null;
 }

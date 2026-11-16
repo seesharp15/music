@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { lazy, Suspense, useMemo } from "react";
+import { useFlag } from "../app/flags";
 import { useHashQuery } from "../app/hashRoute";
 import { TopBar } from "../app/TopBar";
 import { useSongIndex } from "../app/useSongIndex";
@@ -8,9 +9,13 @@ import { SongCard, SongCardSkeleton } from "./SongCard";
 
 const CONTINUE_MAX = 4;
 
+// The author's own songs. Its own chunk, with the database code: downloaded only with the flag on.
+const MySongs = lazy(() => import("./MySongs"));
+
 /** `#/` — the song bank: every song as a card, with search, filters and what was played last. */
 export default function LibraryRoute() {
   const index = useSongIndex();
+  const studio = useFlag("studio");
   const [query, setQuery] = useHashQuery();
   const filters: Filters = {
     q: query.get("q") ?? "",
@@ -76,6 +81,12 @@ export default function LibraryRoute() {
               ))}
             </div>
           </section>
+        )}
+
+        {studio && !filtering && (
+          <Suspense fallback={null}>
+            <MySongs />
+          </Suspense>
         )}
 
         {index.status !== "error" && (

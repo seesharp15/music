@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { Route, Router, Switch } from "wouter";
 import { ErrorBoundary } from "./app/ErrorBoundary";
+import { useFlag } from "./app/flags";
 import { useHashPath } from "./app/hashRoute";
 import { TopBar } from "./app/TopBar";
 
@@ -8,9 +9,12 @@ import { TopBar } from "./app/TopBar";
 const LibraryRoute = lazy(() => import("./library/LibraryRoute"));
 const PracticeRoute = lazy(() => import("./app/routes/PracticeRoute"));
 const CreditsRoute = lazy(() => import("./app/routes/CreditsRoute"));
+const StudioRoute = lazy(() => import("./studio/StudioRoute"));
 
 /** Routes are in the hash (`#/play/divenire`), so the app works on any static host. */
 export function App() {
+  // Unfinished stages hide behind a flag: with it off, their addresses do not exist.
+  const studio = useFlag("studio");
   return (
     <div className="app">
       <Router hook={useHashPath}>
@@ -27,6 +31,22 @@ export function App() {
               </Screen>
             )}
           </Route>
+          {studio && (
+            <Route path="/studio">
+              <Screen>
+                <StudioRoute />
+              </Screen>
+            </Route>
+          )}
+          {studio && (
+            <Route path="/studio/:projectId">
+              {({ projectId }) => (
+                <Screen key={projectId}>
+                  <StudioRoute projectId={projectId} />
+                </Screen>
+              )}
+            </Route>
+          )}
           <Route path="/credits">
             <Screen>
               <CreditsRoute />

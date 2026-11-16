@@ -1,0 +1,43 @@
+/* Small shared pieces the Studio, My songs and Settings use: buttons, dialogs, menus, fields. */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 16px;
+  border-radius: 999px; border: 1px solid var(--border); background: var(--surface-2); cursor: pointer; font-size: 0.9rem;
+}
+.btn:disabled { opacity: 0.45; cursor: default; }
+.btn.is-primary { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 600; }
+.btn.is-danger { background: #b3261e; border-color: #b3261e; color: #fff; font-weight: 600; }
+.btn.is-quiet { background: none; }
+.input {
+  width: 100%; min-height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font: inherit;
+}
+.field { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; color: var(--muted); }
+.field > span { font-weight: 600; }
+.dialog {
+  width: min(420px, calc(100vw - 32px)); padding: 18px; border-radius: 14px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text);
+}
+.dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+.dialog-title { margin: 0 0 10px; font-size: 1.05rem; font-weight: 650; }
+.dialog-body { color: var(--muted); font-size: 0.9rem; line-height: 1.5; margin-bottom: 4px; }
+.dialog-body p { margin: 0 0 8px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.menu { position: relative; display: inline-block; }
+.menu-btn {
+  display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; border: 1px solid transparent;
+  background: none; cursor: pointer; font-size: 1.3rem; line-height: 1;
+}
+.menu-btn:hover, .menu-btn[aria-expanded="true"] { background: var(--surface-2); border-color: var(--border); }
+.menu-list {
+  position: absolute; z-index: 30; right: 0; top: calc(100% + 4px); min-width: 190px; padding: 6px;
+  display: flex; flex-direction: column; border-radius: 12px; border: 1px solid var(--border);
+  background: var(--surface-2); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+.menu.opens-up .menu-list { top: auto; bottom: calc(100% + 4px); }
+.menu-list button {
+  min-height: 44px; padding: 0 12px; border: 0; border-radius: 8px; background: none; cursor: pointer;
+  text-align: left; font-size: 0.9rem; white-space: nowrap;
+}
+.menu-list button:hover, .menu-list button:focus-visible { background: rgba(255, 255, 255, 0.08); }
+.menu-list button.is-danger { color: #ff8a80; }
+.menu-list button:disabled { opacity: 0.45; cursor: default; }

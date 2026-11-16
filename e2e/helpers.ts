@@ -20,6 +20,11 @@ export async function open(page: Page, hash = "") {
   await page.goto(`/?flags=test-hooks${hash}`);
 }
 
+/** The same, with the Studio switched on: My songs in the Library, and the `#/studio` routes. */
+export async function openStudio(page: Page, hash = "") {
+  await page.goto(`/?flags=test-hooks,studio${hash}`);
+}
+
 /** Serve these songs as the whole song bank, in place of the real one. */
 export async function mockBank(page: Page, songs: FixtureSong[]) {
   await page.route("**/songs/index.json", (route) =>
