@@ -1,6 +1,7 @@
 # Piano Tutor → Library, Practice and Studio: the build plan
 
-**Status:** under review by the owner; decisions so far are recorded in §9 · **Written:** 15 November 2026
+**Status:** Stages 0 and 1 are built and live; milestone M1 was confirmed by the owner on a phone on
+16 November 2026. Stage 2 is next. Decisions are recorded in §9 · **Written:** 15 November 2026
 
 This folder is the plan and specification for growing Piano Tutor from a practice player into a place to
 find songs, practise them, and write new ones — by hand, with an assistant that keeps the author in
@@ -247,13 +248,14 @@ everything else waits on it.
 
 ## 9. Decisions that are the owner's
 
-### Decided (15 November 2026)
+### Decided (15–16 November 2026)
 
 | # | Question | Decision | What follows |
 | --- | --- | --- | --- |
 | 1 | Is this project commercial, or might it become so? | **Personal use now, possibly commercial later — and licences are not to restrict the build.** | Stage 8 uses the best engine for each step whatever its licence class. Every engine is still labelled with its class, and one switch excludes the non-commercial ones, so going commercial later is an audit of a table and not a rebuild. |
 | 2 | Is running a server and paying per use acceptable? | **Yes.** | Stages 6 and 8 are in. Their cost estimates (5–10 US cents a co-writer request, a few cents an import) are still to be measured; the daily budgets stay as the guard. |
 | 3 | YouTube links | **Paste-a-link waits for a later change.** | S8.10 stays specified but is not part of this build. File upload and "record this tab" are. |
+| 4 | "L/R sound toggle" | **The Left / Right hand chips**, now a volume slider and mute button each. Confirmed on the built version, 16 November. | Built in Stage 1. Stereo split is unchanged. |
 | 5 | Editor orientation | **Vertical**, like Practice. | Stage 3 as written. A sideways view remains a later option (Stage 9). |
 
 ### Still open
@@ -262,7 +264,6 @@ Each has a default the plan assumes unless told otherwise.
 
 | # | Question | Default assumed | What it changes |
 | --- | --- | --- | --- |
-| 4 | **"L/R sound toggle"** — taken to mean the Left / Right chips in the Hands panel that cycle On / Soft / Off, each becoming a volume slider with a mute button. The other candidate is the "Stereo split" chip (left hand in the left ear), which the plan leaves alone. | The hand chips | The UI in S1.4. |
 | 6 | **Which Claude model.** | `claude-opus-5-5`, set in configuration | Cost, speed and quality of the co-writer; a smaller model is a trade you may choose. |
 | 7 | **Who may use the paid features.** | A shared access code, no accounts | S6.1. |
 | 8 | **Where songs live.** | On the device, with export and backup; cloud accounts in the backlog | Whether a database and sign-in get built. |
