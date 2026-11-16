@@ -110,3 +110,13 @@ test("the same three calls, every time", async ({ page }) => {
     ]);
   }
 });
+
+test("a muted hand is still scheduled, so un-muting brings it straight back", async ({ page }) => {
+  await page.evaluate(() => window.__app!.player!.setMuted("L", true));
+  const run = await record(page, { rate: 1, forMs: 2100 });
+  expect(run.notes.map((n) => [n.pitch, n.hand])).toEqual([
+    [60, "R"],
+    [48, "L"],
+    [64, "R"],
+  ]);
+});

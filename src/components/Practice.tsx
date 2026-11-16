@@ -1,21 +1,19 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { Player, SOUNDS, playRange, type HandLevel, type SoundId } from "../audio/player";
+import { describe } from "../audio/mix";
+import { Player, SOUNDS, playRange, type SoundId } from "../audio/player";
 import { analyzeRhythm } from "../song/rhythm";
-import type { Hand, Song } from "../song/types";
+import type { Song } from "../song/types";
 import { restoreSession, saveSession } from "../session";
 import { useWakeLock } from "../useWakeLock";
 import { exposePlayer } from "../app/testHooks";
 import { faster, posToSpeed, round2, slower, snapRate, SPEED_MARKS, SPEED_STEPS, speedToPos } from "./speed";
-import { HAND_COLORS } from "./colors";
 import { Coach } from "./Coach";
 import { Collapsible } from "./Collapsible";
+import { HandMixer } from "./HandMixer";
 import { RhythmMap } from "./RhythmMap";
 import { Stage, type KeyMode } from "./Stage";
 import { StepKeys, StepThrough } from "./StepThrough";
 import { Trimmer, formatTime } from "./Trimmer";
-
-const NEXT_LEVEL: Record<HandLevel, HandLevel> = { on: "soft", soft: "off", off: "on" };
-const LEVEL_LABEL: Record<HandLevel, string> = { on: "On", soft: "Soft", off: "Off" };
 
 interface Prefs {
   sound: SoundId;
@@ -73,7 +71,7 @@ export function Practice({ song }: { song: Song }) {
 
 function PracticeView({ song, player }: { song: Song; player: Player }) {
   const state = useSyncExternalStore(player.subscribe, player.getState);
-  const { playing, stepping, rate, loop, levels, sound, piano, stereo, metronome } = state;
+  const { playing, stepping, rate, loop, mix, sound, piano, stereo, metronome } = state;
   const rhythm = useMemo(() => analyzeRhythm(song), [song]);
   const [syncLines, setSyncLines] = useState(() => loadPrefs().syncLines ?? true);
   const [keyMode, setKeyMode] = useState<KeyMode>(() => loadPrefs().keyMode ?? "song");
@@ -151,6 +149,10 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
         clearSelection();
       } else if (e.key === "m" || e.key === "M") {
         player.setMetronome(!player.state.metronome);
+      } else if (e.key === "1") {
+        player.toggleMute("L");
+      } else if (e.key === "2") {
+        player.toggleMute("R");
       }
     };
     window.addEventListener("keydown", onKey);
@@ -218,11 +220,11 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
       </div>
 
       {/* A song played freely (no steady tempo) has no beat grid to count along to. */}
-      {song.bpm && <RhythmMap player={player} rhythm={rhythm} levels={levels} duration={player.duration} />}
+      {song.bpm && <RhythmMap player={player} rhythm={rhythm} mix={mix} duration={player.duration} />}
       <StepKeys player={player} rhythm={rhythm} />
 
       <div className="stage-wrap">
-        <Stage song={song} player={player} levels={levels} rhythm={rhythm} syncLines={syncLines} keys={keyMode} />
+        <Stage song={song} player={player} mix={mix} rhythm={rhythm} syncLines={syncLines} keys={keyMode} />
         <div className="stage-keys" role="group" aria-label="Keys shown">
           <span>Keys</span>
           {KEY_MODES.map((m) => (
@@ -350,28 +352,14 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
         </div>
       </Collapsible>
 
-      <Collapsible id="hands" title="Hands" summary={`Left ${LEVEL_LABEL[levels.L]} · Right ${LEVEL_LABEL[levels.R]}`}>
-        <div className="control-group">
-          {(["L", "R"] as Hand[]).map((h) => (
-            <button
-              key={h}
-              className={`chip hand lvl-${levels[h]}`}
-              style={{ "--hand": HAND_COLORS[h].fill } as React.CSSProperties}
-              onClick={() => player.setLevel(h, NEXT_LEVEL[levels[h]])}
-              title={`${h === "L" ? "Left" : "Right"} hand: ${LEVEL_LABEL[levels[h]]}. Tap for ${LEVEL_LABEL[NEXT_LEVEL[levels[h]]]}.`}
-            >
-              <span className="dot" />
-              {h === "L" ? "Left" : "Right"}
-              <span className="lvl mono">{LEVEL_LABEL[levels[h]]}</span>
-            </button>
-          ))}
-        </div>
+      <Collapsible id="hands" title="Hands" summary={`Left ${describe(mix.L)} · Right ${describe(mix.R)}`}>
+        <HandMixer player={player} mix={mix} />
 
         <Coach player={player} rhythm={rhythm} loop={loop} syncLines={syncLines} onSyncLines={setSyncLines} />
 
         <p className="hint">
           Space play/pause · ←/→ skip 5s of listening · ↑/↓ speed · , / . step · L loop · Esc clear loop · M metronome ·
-          R restart
+          R restart · 1 / 2 mute left / right
         </p>
       </Collapsible>
     </main>

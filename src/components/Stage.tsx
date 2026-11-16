@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { HandLevel, Player } from "../audio/player";
+import { alphaOf } from "../audio/mix";
+import type { Mix, Player } from "../audio/player";
 import type { Rhythm } from "../song/rhythm";
 import type { Hand, Song } from "../song/types";
 import { HAND_COLORS } from "./colors";
@@ -34,25 +35,24 @@ const pixelsPerSecond = (height: number) => (height - keyboardHeight(height)) / 
 interface Props {
   song: Song;
   player: Player;
-  levels: Record<Hand, HandLevel>;
+  /** Each hand's volume and mute: quieter hands are drawn fainter. */
+  mix: Mix;
   rhythm: Rhythm;
   /** Draw a line linking left- and right-hand notes that start together. */
   syncLines: boolean;
   keys: KeyMode;
 }
 
-const LEVEL_ALPHA: Record<HandLevel, number> = { on: 1, soft: 0.55, off: 0.2 };
-
 /** Synthesia-style falling notes above a piano keyboard. */
-export function Stage({ song, player, levels, rhythm, syncLines, keys }: Props) {
+export function Stage({ song, player, mix, rhythm, syncLines, keys }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // The song's keys, in white-key units.
   const songSpan = useMemo(() => {
     const [low, high] = keyRangeFor(song.notes.map((n) => n.pitch));
     return [keySpan(low)[0], keySpan(high)[1]] as const;
   }, [song]);
-  const opts = useRef({ levels, syncLines, keys });
-  opts.current = { levels, syncLines, keys };
+  const opts = useRef({ mix, syncLines, keys });
+  opts.current = { mix, syncLines, keys };
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -220,7 +220,7 @@ export function Stage({ song, player, levels, rhythm, syncLines, keys }: Props) 
         if (h <= 0) continue;
         const c = HAND_COLORS[n.hand];
         const pad = k.black ? 0 : Math.max(1, whiteW * 0.08);
-        ctx.globalAlpha = LEVEL_ALPHA[opts.current.levels[n.hand]];
+        ctx.globalAlpha = alphaOf(opts.current.mix[n.hand]);
         ctx.fillStyle = k.black ? c.dark : c.fill;
         roundRect(ctx, k.x + pad, top, k.w - pad * 2, Math.max(h, 2), Math.min(6, k.w / 3));
         ctx.fill();
