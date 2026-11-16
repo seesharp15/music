@@ -26,7 +26,6 @@ jobs:
       - run: npm run lint
       - run: npm run songs:index -- --check
       - run: npm test
-      - run: npm run build
       - name: Playwright version
         id: pw
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"

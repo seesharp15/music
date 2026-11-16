@@ -12,8 +12,8 @@
     "format": "prettier --write \"src/**/*.{ts,tsx}\" \"e2e/**/*.ts\" \"scripts/**/*.mjs\" \"*.{ts,js,json}\"",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
-    "check": "npm run typecheck && npm run lint && npm run songs:index -- --check && npm test && npm run build && npm run test:e2e",
+    "test:e2e": "npm run build && playwright test",
+    "check": "npm run typecheck && npm run lint && npm run songs:index -- --check && npm test && npm run test:e2e",
     "midi-to-song": "node scripts/midi-to-song.mjs",
     "songs:index": "node scripts/songs-index.mjs"
   },
