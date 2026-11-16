@@ -40,6 +40,11 @@ export async function mockBank(page: Page, songs: FixtureSong[]) {
 /** Wait for Practice to have built its player for the song now on screen. */
 export async function playerReady(page: Page) {
   await page.waitForFunction(() => !!window.__app?.player);
+  // The player exists a moment before the screen built on it does. Wait for that screen, and for
+  // the frame after it, by which time its keyboard shortcuts are listening: a key pressed sooner
+  // than that, on a busy machine, went nowhere.
+  await page.getByRole("button", { name: /^(Play|Pause|Resume from this step)$/ }).waitFor();
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0))));
 }
 
 /**

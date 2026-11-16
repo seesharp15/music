@@ -1,13 +1,50 @@
 import { useEffect, useRef, useState } from "react";
 import { midiSupported } from "../audio/midi-in";
+import { announce, selected } from "./actions";
 import { useProject, useSession, useUi } from "./context";
+import { TempoControl } from "./SongSettings";
 
 /** Record and play, and the switches that go with playing and with keys. */
 export function Transport() {
   const session = useSession();
-  const { playback, keys } = session;
+  const { playback, keys, ui } = session;
   const playing = useUi((s) => s.playing);
   const recording = useUi((s) => s.recording);
+  const looping = useUi((s) => s.loop !== null);
+
+  /** Loop what is selected; failing that the section under the cursor; failing that four bars. */
+  const toggleLoop = () => {
+    if (ui.getState().loop) {
+      ui.setState({ loop: null });
+      return announce(session, "Loop off");
+    }
+    const { cursor } = ui.getState();
+    const project = session.store.getState().project;
+    const time = playback.time();
+    const held = selected(session);
+    const section = project.sections.find((s) => cursor >= s.tick && cursor < s.tick + s.dur);
+    let loop: { start: number; end: number };
+    let what: string;
+    if (held.length) {
+      const first = Math.min(...held.map((h) => h.note.tick));
+      const last = Math.max(...held.map((h) => h.note.tick + h.note.dur));
+      // Whole bars around the selection, so the loop comes round in time.
+      loop = {
+        start: time.tickOfBar(time.positionAt(first).bar),
+        end: time.tickOfBar(time.positionAt(Math.max(first, last - 1)).bar + 1),
+      };
+      what = "the selection";
+    } else if (section) {
+      loop = { start: section.tick, end: section.tick + section.dur };
+      what = section.name;
+    } else {
+      const bar = time.positionAt(cursor).bar;
+      loop = { start: time.tickOfBar(bar), end: time.tickOfBar(bar + 4) };
+      what = `bars ${bar} to ${bar + 3}`;
+    }
+    ui.setState({ loop });
+    announce(session, `Looping ${what}`);
+  };
   return (
     <div className="transport" role="group" aria-label="Transport">
       {!session.readOnly && (
@@ -39,6 +76,24 @@ export function Transport() {
           ) : (
             <path d="M8 5v14l11-7z" fill="currentColor" />
           )}
+        </svg>
+      </button>
+      <button
+        className={`tool-btn ${looping ? "is-on" : ""}`}
+        aria-pressed={looping}
+        aria-label="Loop"
+        title="Loop the selection, the section under the cursor, or four bars"
+        onClick={toggleLoop}
+      >
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
+          <path
+            d="M7 7h9a4 4 0 0 1 4 4v1M17 17H8a4 4 0 0 1-4-4v-1M14 4l3 3-3 3M10 20l-3-3 3-3"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       </button>
       <TransportOptions />
@@ -97,18 +152,18 @@ function TransportOptions() {
   return (
     <div className="transport-options" ref={wrap}>
       <button
-        className="tempo-btn"
+        className={`tempo-btn ${typing ? "is-typing" : ""}`}
         aria-expanded={open}
-        aria-label={`Tempo ${bpm}: playing and keys`}
+        aria-label={`Tempo ${bpm}: playing and keys${typing ? " (musical typing is on)" : ""}`}
         title="Tempo, the click, and how the keys behave"
         onClick={() => setOpen((o) => !o)}
       >
-        <span aria-hidden>♩</span>
+        <span aria-hidden>{typing ? "abc" : "♩"}</span>
         <span className="mono">{bpm}</span>
-        {typing && <span className="tempo-flag">abc</span>}
       </button>
       {open && (
         <div className="view-panel opens-up" role="group" aria-label="Playing and keys">
+          {!session.readOnly && <TempoControl />}
           {check("Metronome", metronome, (v) => ui.setState({ metronome: v }), "A click on every beat while playing")}
           {!session.readOnly && (
             <>

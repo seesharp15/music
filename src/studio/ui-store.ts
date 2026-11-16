@@ -58,6 +58,10 @@ export interface UiState {
   loop: { start: number; end: number } | null;
   playing: boolean;
   recording: boolean;
+  /** The one track being heard alone, or null. */
+  solo: string | null;
+  /** Tracks whose notes are not drawn in the editor (they still play). */
+  hiddenTracks: string[];
   /** The first-run choices have been answered or dismissed. */
   started: boolean;
   /** What the live region last said. */
@@ -69,7 +73,18 @@ export interface UiState {
 /** The part of the state remembered for each project (contracts §10, `studio:<projectId>`). */
 export type SavedUi = Pick<
   UiState,
-  "cursor" | "tool" | "activeTrack" | "ticksPerPx" | "keys" | "keyShift" | "length" | "snap" | "colourByHand"
+  | "cursor"
+  | "tool"
+  | "activeTrack"
+  | "ticksPerPx"
+  | "keys"
+  | "keyShift"
+  | "length"
+  | "snap"
+  | "colourByHand"
+  | "hiddenTracks"
+  | "metronome"
+  | "countIn"
 >;
 const SAVED: (keyof SavedUi)[] = [
   "cursor",
@@ -81,6 +96,9 @@ const SAVED: (keyof SavedUi)[] = [
   "length",
   "snap",
   "colourByHand",
+  "hiddenTracks",
+  "metronome",
+  "countIn",
 ];
 
 /** Zoom limits are set by the canvas, which knows its height; these only keep stored values sane. */
@@ -112,6 +130,8 @@ export const initialUi = (activeTrack: string): UiState => ({
   loop: null,
   playing: false,
   recording: false,
+  solo: null,
+  hiddenTracks: [],
   started: false,
   announcement: "",
   midi: { on: false, devices: [], error: null },
@@ -136,6 +156,10 @@ export function sanitizeSavedUi(raw: unknown, trackIds: readonly string[]): Part
   if (num(r.keyShift)) out.keyShift = Math.max(-4, Math.min(4, Math.round(r.keyShift)));
   if (GRIDS.includes(r.snap as Grid)) out.snap = r.snap as Grid;
   if (typeof r.colourByHand === "boolean") out.colourByHand = r.colourByHand;
+  if (typeof r.metronome === "boolean") out.metronome = r.metronome;
+  if (typeof r.countIn === "boolean") out.countIn = r.countIn;
+  if (Array.isArray(r.hiddenTracks))
+    out.hiddenTracks = r.hiddenTracks.filter((id): id is string => trackIds.includes(id as string));
   const len = r.length as Partial<StepLength> | undefined;
   if (len && BASES.includes(len.base as number)) {
     out.length = { base: len.base as StepLength["base"], dotted: !!len.dotted, triplet: !!len.triplet };

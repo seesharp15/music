@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { ConfirmDialog, Dialog, PromptDialog } from "../app/ui/Dialog";
 import { Menu } from "../app/ui/Menu";
 import { exposeStudio } from "../app/testHooks";
@@ -19,12 +19,27 @@ import { SelectionChip } from "./SelectionChip";
 import { StepBar } from "./StepBar";
 import { Toolbar } from "./Toolbar";
 import { Transport } from "./Transport";
+import { TracksSheet } from "./tracks/TracksSheet";
 import { TrackTabs } from "./TrackTabs";
 import "../app/ui/ui.css";
 import "./studio.css";
 
 /** The Studio for one open project. `banner` is shown above the editor (read-only notices). */
+/** True on screens wide enough for tracks and sections to stay open in a column of their own. */
+function useWide(): boolean {
+  const query = "(min-width: 1024px)";
+  return useSyncExternalStore(
+    (onChange) => {
+      const mq = window.matchMedia(query);
+      mq.addEventListener("change", onChange);
+      return () => mq.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia(query).matches,
+  );
+}
+
 export function Studio({ session, banner }: { session: Session; banner?: React.ReactNode }) {
+  const wide = useWide();
   useEffect(() => {
     exposeStudio(session);
     const offCommands = installCommands(session, {
@@ -41,9 +56,17 @@ export function Studio({ session, banner }: { session: Session; banner?: React.R
   return (
     <SessionContext.Provider value={session}>
       <div className={`studio ${session.readOnly ? "is-readonly" : ""}`}>
-        <StudioBar />
+        <StudioBar wide={wide} />
         {banner}
         <div className="studio-main">
+          {wide && !session.readOnly && (
+            <aside className="studio-left" aria-label="Tracks and sections">
+              <h2>Tracks</h2>
+              <TracksSheet />
+              <h2>Sections</h2>
+              <SectionsSheet />
+            </aside>
+          )}
           <div className="studio-editor">
             <EditorCanvas />
             <ViewMenu />
@@ -61,9 +84,14 @@ export function Studio({ session, banner }: { session: Session; banner?: React.R
               <ChordPicker />
             </Sheet>
           )}
-          {!session.readOnly && (
+          {!session.readOnly && !wide && (
             <Sheet id="sections" title="Sections">
               <SectionsSheet />
+            </Sheet>
+          )}
+          {!session.readOnly && !wide && (
+            <Sheet id="tracks" title="Tracks and mixer">
+              <TracksSheet />
             </Sheet>
           )}
         </div>
@@ -97,7 +125,7 @@ function LiveRegion() {
   );
 }
 
-function StudioBar() {
+function StudioBar({ wide }: { wide: boolean }) {
   const session = useSession();
   const { store, ui, readOnly } = session;
   const { project, canUndo, canRedo, undoLabel, redoLabel, dirty, saveError } = useStoreState();
@@ -154,7 +182,12 @@ function StudioBar() {
           <Menu
             label="Song menu"
             items={[
-              { label: "Sections", onSelect: () => ui.setState({ sheet: "sections" }) },
+              ...(wide
+                ? []
+                : [
+                    { label: "Tracks and mixer", onSelect: () => ui.setState({ sheet: "tracks" }) },
+                    { label: "Sections", onSelect: () => ui.setState({ sheet: "sections" }) },
+                  ]),
               { label: "Song settings", onSelect: () => ui.setState({ sheet: "settings" }) },
               { label: "Rename…", onSelect: () => setDialog("rename") },
               { label: "Duplicate", onSelect: () => void duplicate() },

@@ -123,9 +123,13 @@ export const sectionColor = (project: Project, index: number) =>
   project.sections[index]?.color ?? SECTION_COLORS[index % SECTION_COLORS.length];
 
 /** The notes that can be taken hold of: the active track's, or every unlocked track's. */
-export function editableTracks(project: Project, ui: Pick<UiState, "activeTrack" | "editAll">): NoteTrack[] {
+export function editableTracks(
+  project: Project,
+  ui: Pick<UiState, "activeTrack" | "editAll"> & { hiddenTracks?: readonly string[] },
+): NoteTrack[] {
   return project.tracks.filter(
-    (t): t is NoteTrack => t.kind === "notes" && (ui.editAll ? !t.locked : t.id === ui.activeTrack),
+    (t): t is NoteTrack =>
+      t.kind === "notes" && !ui.hiddenTracks?.includes(t.id) && (ui.editAll ? !t.locked : t.id === ui.activeTrack),
   );
 }
 
@@ -223,7 +227,7 @@ registerLayer({
     // Other tracks first and fainter, then the one being written.
     const order = [...project.tracks].sort((a, b) => Number(a.id === ui.activeTrack) - Number(b.id === ui.activeTrack));
     for (const track of order) {
-      if (track.kind !== "notes") continue;
+      if (track.kind !== "notes" || ui.hiddenTracks.includes(track.id)) continue;
       const base = track.muted ? 0.18 : editable.has(track.id) ? (track.id === ui.activeTrack ? 1 : 0.8) : 0.32;
       for (const n of track.notes) {
         const held = drag?.ids.has(n.id);

@@ -414,7 +414,10 @@ export function paste(session: Session) {
 }
 
 /** The notes pointer gestures may take hold of, as the view's hit-testing wants them. */
-export function grabbable(project: Project, ui: { activeTrack: string; editAll: boolean }) {
+export function grabbable(
+  project: Project,
+  ui: { activeTrack: string; editAll: boolean; hiddenTracks?: readonly string[] },
+) {
   return editableTracks(project, ui).flatMap((t) =>
     t.notes.map((n) => ({ id: n.id, pitch: n.pitch, tick: n.tick, dur: n.dur })),
   );

@@ -8,6 +8,9 @@ import { project, setUi, settled, studioWith, ui } from "./studio-helpers";
  * section when one is duplicated, moved or deleted.
  */
 needsSound();
+// A phone: the sections are a sheet opened from the song menu. (On a wide screen they stay open in
+// a column beside the editor; e2e/tracks.spec.ts covers that.)
+test.use({ viewport: { width: 390, height: 844 } });
 
 const BAR = 1920;
 const Q = 480;

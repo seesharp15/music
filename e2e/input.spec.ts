@@ -395,7 +395,7 @@ test.describe("musical typing", () => {
     await expect(live(page)).toHaveText("C4, bar 1, beat 1, quarter note, selected");
     expect(await notesOf(page)).toHaveLength(7);
     // The switch shows in the transport row, so it is plain why letters are playing notes.
-    await expect(page.getByRole("button", { name: /^Tempo/ })).toContainText("abc");
+    await expect(page.getByRole("button", { name: /^Tempo .*musical typing is on/ })).toContainText("abc");
   });
 });
 

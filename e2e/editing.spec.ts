@@ -46,7 +46,8 @@ async function drag(
 
 test.describe("with the mouse", () => {
   test.beforeEach(async ({ page }) => {
-    await page.setViewportSize({ width: 1100, height: 800 });
+    // Just under the width at which tracks and sections take a column of their own.
+    await page.setViewportSize({ width: 1000, height: 800 });
     await studioWith(page, TUNE);
     await settled(page);
   });
@@ -89,7 +90,8 @@ test.describe("with the mouse", () => {
   test("a box across empty space selects what it touches; dragging one of them moves them all", async ({ page }) => {
     const applies = await countApplies(page);
     const a = await pointOf(page, 59, 300);
-    const b = await pointOf(page, 63, 1200);
+    // As far right as the middle of the D key: E, which sounds in the same stretch of time, is outside.
+    const b = await pointOf(page, 62, 1200);
     await drag(page, { x: a.x - 6, y: a.y }, b);
     const notes = await notesOf(page);
     const ids = notes.filter((n) => n.pitch === 60 || n.pitch === 62).map((n) => n.id);

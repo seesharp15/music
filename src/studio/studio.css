@@ -101,8 +101,8 @@
 .view-check input { width: 20px; height: 20px; accent-color: var(--accent); }
 
 /* The tool row. */
-.toolbar { display: flex; align-items: center; gap: 4px; padding: 4px 6px 0; overflow-x: auto; scrollbar-width: none; }
-.tool-group { display: flex; gap: 2px; padding: 2px; border-radius: 12px; background: var(--bg); border: 1px solid var(--border); }
+.toolbar { display: flex; align-items: center; gap: 2px; padding: 4px 4px 0; }
+.tool-group { display: flex; gap: 2px; border-radius: 12px; background: var(--bg); }
 .tool-btn {
   position: relative; flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 10px;
   border: 1px solid transparent; background: none; color: var(--muted); cursor: pointer;
@@ -146,19 +146,18 @@
 @media (min-width: 560px) { .step-btn.is-wide-only { display: grid; } .step-bar { max-width: 640px; } }
 
 /* Record, play, and the tempo button with its panel. */
-.transport { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.transport { display: flex; align-items: center; gap: 2px; margin-left: auto; }
 .record-btn { color: #ff5a52; }
 .record-btn.is-on { background: #ff5a52; border-color: #ff5a52; color: #fff; }
 .play-btn-small { color: var(--text); background: var(--surface-2); border-color: var(--border); }
 .recording-note { color: #ff8a80; font-size: 0.75rem; font-weight: 600; }
 .transport-options { position: relative; }
 .tempo-btn {
-  display: inline-flex; align-items: center; gap: 5px; height: 44px; padding: 0 12px; border-radius: 10px; cursor: pointer;
-  border: 1px solid var(--border); background: var(--surface-2); font-size: 0.9rem;
+  display: inline-flex; align-items: center; justify-content: center; gap: 3px; height: 44px; min-width: 56px; padding: 0 6px;
+  border-radius: 10px; cursor: pointer; border: 1px solid var(--border); background: var(--surface-2); font-size: 0.85rem;
 }
-.tempo-flag { padding: 1px 5px; border-radius: 5px; background: var(--accent); color: #111; font-size: 0.65rem; font-weight: 700; }
-.view-panel.opens-up { top: auto; bottom: 50px; width: 250px; z-index: 30; }
-.toolbar { overflow: visible; }
+.tempo-btn.is-typing { border-color: var(--accent); color: var(--accent); }
+.view-panel.opens-up { top: auto; bottom: 50px; width: min(290px, calc(100vw - 12px)); z-index: 30; }
 
 /* What is selected, floating over the canvas. */
 .selection-chip {
@@ -210,3 +209,46 @@
 .chip.is-danger { color: #ff8a80; }
 .section-add { display: flex; flex-wrap: wrap; gap: 8px; }
 .delete-choices { display: flex; flex-direction: column; gap: 8px; }
+
+/* Tracks and mixer. */
+.tracks { display: flex; flex-direction: column; gap: 12px; }
+.track-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.track-card { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; border: 1px solid var(--border); border-left: 5px solid var(--track); background: var(--surface-2); }
+.track-card.is-active { border-color: #4b5263; border-left-color: var(--track); background: #222733; }
+.track-top { display: flex; align-items: flex-end; gap: 8px; }
+.track-top .field { flex: 1; min-width: 0; }
+.track-top .field > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.track-pick { flex: none; width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--track); background: none; cursor: pointer; }
+.track-pick.is-on { background: var(--track); box-shadow: inset 0 0 0 4px var(--surface-2); }
+.track-card .hand-row { grid-template-columns: 4.2rem 44px minmax(0, 1fr) 3.4rem; }
+.track-switches, .track-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.track-switches .chip, .track-actions .chip, .hand-pick .chip { height: 44px; }
+.track-actions .chip:disabled, .hand-pick .chip:disabled { opacity: 0.4; cursor: default; }
+.chip.toggle-on { border-color: var(--accent); color: var(--accent); }
+.track-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.track-fields .select, .settings-form .select { width: 100%; height: 44px; border-radius: 8px; }
+.hand-pick { display: flex; gap: 6px; }
+
+/* Song settings. */
+.settings-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.settings-row .field { flex: 1 1 120px; }
+.settings-swing input { width: 100%; height: 44px; accent-color: var(--accent); }
+.tempo-control { display: flex; align-items: flex-end; gap: 6px; }
+.tempo-control .field { flex: 1 1 90px; min-width: 0; }
+.tempo-control .field > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tap-btn { min-width: 108px; touch-action: manipulation; }
+.view-panel .tempo-control { flex-wrap: wrap; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+
+/* Wide screens: tracks and sections in a column of their own; the More button is not needed. */
+.studio-left { display: none; }
+@media (min-width: 1024px) {
+  .studio-left { display: block; flex: none; width: 340px; overflow-y: auto; padding: 4px 12px 16px; border-right: 1px solid var(--border); background: var(--surface); }
+  .studio-left h2 { margin: 14px 0 8px; font-size: 0.95rem; font-weight: 650; }
+  .track-tab.is-more { display: none; }
+}
+
+/* A narrow phone: the tool row's buttons share the width evenly rather than run off the edge. */
+@media (max-width: 389px) {
+  .toolbar .tool-group, .toolbar .transport { display: contents; }
+  .toolbar .tool-btn { flex: 1 1 0; width: auto; min-width: 0; }
+}

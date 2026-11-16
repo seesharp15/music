@@ -90,6 +90,7 @@ export function createPlayback(
     queueMicrotask(recompile);
   });
 
+  let lastSolo = ui.getState().solo;
   let lastLoop = ui.getState().loop;
   let lastMetronome = ui.getState().metronome;
   player.setMetronome(lastMetronome);
@@ -98,6 +99,10 @@ export function createPlayback(
     if (s.loop !== lastLoop) {
       lastLoop = s.loop;
       applyLoop();
+    }
+    if (s.solo !== lastSolo) {
+      lastSolo = s.solo;
+      player.solo(s.solo);
     }
     if (s.metronome !== lastMetronome) {
       lastMetronome = s.metronome;
