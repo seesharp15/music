@@ -118,3 +118,22 @@ test("the practice routine borrows the mute switches and hands them back; volume
   await page.getByRole("button", { name: /Stop routine/ }).click();
   expect(await mix(page)).toEqual({ L: { volume: 0.6, muted: false }, R: { volume: 1, muted: true } });
 });
+
+test.describe("by touch", () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+
+  test("a tap mutes a hand, and a tap along the slider sets its volume", async ({ page }) => {
+    await page.getByRole("button", { name: "Mute right hand" }).tap();
+    expect((await mix(page)).R.muted).toBe(true);
+    await page.getByRole("button", { name: "Mute right hand" }).tap();
+    expect((await mix(page)).R.muted).toBe(false);
+
+    const slider = page.getByRole("slider", { name: "Left hand volume" });
+    const box = (await slider.boundingBox())!;
+    await page.touchscreen.tap(box.x + box.width * 0.25, box.y + box.height / 2);
+    const left = (await mix(page)).L;
+    expect(left.muted).toBe(false);
+    expect(left.volume).toBeGreaterThan(0.1);
+    expect(left.volume).toBeLessThan(0.4);
+  });
+});
