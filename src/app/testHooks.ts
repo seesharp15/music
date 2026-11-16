@@ -9,6 +9,8 @@ import { flag } from "./flags";
 export interface AppHooks {
   player: Player | null;
   testing: () => Promise<typeof import("../audio/testing")>;
+  /** Projects, storage and the catalog: no audio code, so it loads in any browser. */
+  kit: () => Promise<typeof import("./testKit") & { storage: typeof import("../storage") }>;
 }
 
 declare global {
@@ -21,7 +23,11 @@ const enabled = () => import.meta.env.DEV || flag("test-hooks");
 
 function hooks(): AppHooks | null {
   if (!enabled()) return null;
-  return (window.__app ??= { player: null, testing: () => import("../audio/testing") });
+  return (window.__app ??= {
+    player: null,
+    testing: () => import("../audio/testing"),
+    kit: async () => ({ ...(await import("./testKit")), storage: await import("../storage") }),
+  });
 }
 
 /** Called once at start-up, so tests can reach the harness before any screen has loaded. */

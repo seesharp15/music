@@ -197,4 +197,288 @@ Playwright against real IndexedDB, including an upgrade from an empty database.
 
 ## Build notes
 
-_Empty._
+Built from 16 November 2026, one package at a time on one branch (`claude/stage-2-implementation-p1wlxt`),
+one commit per package, in the order S2.1, S2.2, S2.6, S2.3, S2.4, S2.5, S2.7 — S2.6 moved up because
+S2.3's autosave needs it.
+
+### S2.1 — musical time
+
+- **`TimeMap` has two more methods**, `meterAt` and `bpmAt` (contract change, additive). `metricWeight`
+  and the groove functions are handed a time map and need to know how its bars divide.
+- **A beat is the meter's denominator**: six beats in a bar of 6/8, each an eighth. Tempo stays in
+  quarter notes a minute everywhere.
+- **A meter change that is not on a bar line starts a new bar where it falls.** The plan does not say;
+  the alternative is a time map that can throw.
+- **Swing is a stretch, not a nudge.** `swingOffset` warps the whole pair of units, so a sixteenth
+  between a beat and a swung off-beat moves in proportion and notes never cross. On the beats it is 0 and
+  on the off-beat eighth of triplet swing it is 80 ticks, as expected.
+- **`grooveOffset` takes a `TimeMap`, not the meter events** the plan's signature shows: it needs bar
+  starts, and every caller already holds the map. `grooveAccent` is its companion for the velocity half
+  of a `Groove`.
+- **`quantizeNotes` with `keepOffset`** quantizes where the note is *heard* (`tick + offset`), files it
+  under the straight grid line, and puts the difference in `offset`: what is heard does not move. Without
+  `keepOffset` the note moves to where its line is heard, swing and groove included.
+- **`estimateTempo`** reads steady taps 0.4 s apart as 75, not 150 — the plan's rule (prefer 70–140 when
+  octave readings fit equally) taken literally; `alternatives` is the one-tap correction. Compound time
+  is reported with the tempo in quarter notes (6/8 at 80 dotted quarters comes back as 120). A stream of
+  even eighths in 6/8 is indistinguishable from 3/4 and is read as 3/4.
+- **On the bank:** Rewrite the Stars comes back as 125.00 BPM, 4/4, straight, confidence 1.0, in 17 ms.
+  Divenire comes back as a guess with confidence 0.04 — which is the honest answer for free time, and is
+  what `projectFromSong` will flag with `gridGuessed`.
+
+### S2.2 — theory kernel and analysis
+
+- **The kernel owns the chord table; `tonal` reads around it.** 43 qualities, each with one canonical
+  name, its notes, and the other spellings it is read from (`CM7`, `C-7`, `Cø`, `C+7`, `C69`, `C7alt` …).
+  `tonal` supplies scale spelling (the E# of F# major) and reads spellings the table does not list;
+  whatever it makes of one is then named from the table, so a library update cannot change a stored
+  symbol. A test checks that no two qualities share a set of notes.
+- **Degrees and Roman numerals are counted in the key's own scale.** In A minor, C is degree `3` and the
+  chord `III`; C# is `#3`; E major is `V`; G#dim is `#vii°`. (The other convention writes those against
+  the major scale: `b3`, `bIII`.) One rule serves `degreeOf`, `romanOf` and `spell`, and it is the one
+  classical harmony uses for minor keys. `GridBar.degree` (contracts §7) follows it.
+- **A Roman numeral says nothing of the inversion**: `F/A` in C is `IV`. `chordOfRoman(romanOf(x))`
+  gives back the root-position chord; a test round-trips all 43 qualities on all 12 roots in four keys.
+- **`detectChord` takes the lowest pitch as the bass.** A reading rooted on the bass beats an inversion,
+  a simpler chord beats a fancier one, and a chord missing its fifth is still named. Rootless voicings
+  are not guessed at. An optional key decides how roots are spelled (`C#` in F# major, `Db` otherwise).
+- **`substitutesFor` returns reasons, not just symbols** (`relative`, `mediant`, `tritone`,
+  `leadingTone`, `suspended`, `parallel`, and whether the substitute stays in the key), because Stage 5
+  must explain every option in plain words.
+- **Key finding uses Temperley's 1999 profiles**, and reports all 24 keys with a confidence that sums
+  to 1. `findKeyChanges` is the windowed form. `spellPitchClass`, `scaleNames`, `parseKey`, `keyName`,
+  `canonicalChord` and `areRelative` are small additions the plan's table does not list.
+- **Analysis reduces chords to their top note** (`melodyLine`) before measuring a line; `rangeOf` alone
+  counts every note. Motif matching is exact on intervals and on the ticks between onsets, so it wants
+  quantized notes — which is what a project holds.
+
+| # | Result |
+| --- | --- |
+| 3 | Pass — 24 of 24 keys right (`src/music/fixtures/melodies.ts`, twelve major and twelve minor tunes, one on each tonic). The runner-up is usually the dominant or the parallel key, not the relative. |
+| 4 | Pass — 64 chords, each parsed and detected to the same symbol; Roman numerals for the diatonic chords of C major and A minor (triads and sevenths), the borrowed chords of both, and secondary dominants. |
+
+### S2.3 — project schema, edit operations, the store
+
+Built before S2.6, not after: the store saves through a two-method interface (`ProjectPersistence`),
+which S2.6 then implements over IndexedDB. Criterion 7 is therefore checked in S2.6.
+
+- **Undo does not use Immer's patches.** They address list items by position, so one note inserted near
+  the start of a 3,000-note track is recorded as 3,000 replaced items. Measured: 200 such edits made
+  624,282 patches and 83 MB of history, against the plan's budget of 5 MB, and took 11 ms an edit.
+  `src/project/delta.ts` instead compares the project before and after an edit by identity — `applyOps`
+  shares every unchanged part — and records which items left a list and which arrived. The same 200
+  edits now hold **41 KB**, at 4 ms an edit. Immer is still what makes `applyOps` all-or-nothing and
+  what applies a delta; Zustand's vanilla store holds the state, as planned.
+- **`applyOps` is checked by properties as well as cases**: a seeded generator (`src/project/testing/
+  random.ts`) produces valid edits of all 23 kinds; after each of 2,400 the project must still pass
+  `checkProject`, and at the end `ProjectSchema`.
+- **`ProjectSchema` is strict** — an unknown field is an error, not something silently dropped — and it
+  checks the rules a shape cannot express (unique ids below `seq`, sorted notes, chords that do not
+  overlap, clips whose pattern exists, a length that covers the music). `parseProject` is the door:
+  it never throws and returns either a project or a list of what is wrong, each with its path.
+- **`updatedAt` is stamped on the saved copy**, not by `apply`, so an edit is deterministic and an undo
+  restores the project exactly.
+- **What the plan left open about the range operations** is now written down in contracts §5: notes
+  held across a cut are cut short; a section a gap opens inside grows; a chord sounding across a copy's
+  destination is split; locked tracks move with the rest.
+- **The pure zone now uses Immer** (`ops.ts`, `delta.ts`). It has no DOM or audio in it and runs on a
+  server, so it belongs; `store.ts` (Zustand, timers, page events) stays outside, as the plan has it.
+
+| # | Result |
+| --- | --- |
+| 5 | Pass — `src/project/ops.test.ts`: 16 unknown-id cases, 8 out-of-range, 38 bad-value, 3 overlap and 16 locked-track cases, each asserting the code, the index of the refused op, and a project deep-equal to before; and each silent correction. |
+| 6 | Pass — `src/project/store.test.ts`, three seeds: 200 random edits, 200 undos (each step compared with the state on the way there), 200 redos. Undo history for 200 steps on a 3,000-note project: 41 KB. |
+
+### S2.6 — storage, the catalog, export and import
+
+- **Closing the tab is covered twice.** The store's last write on `pagehide` goes to IndexedDB and,
+  synchronously, to `localStorage` (`piano-tutor:unsaved:<id>`), because a database write begun as a page
+  closes is not certain to finish — least of all in Safari. The next `loadProject` takes whichever is
+  newer, writes it to the database and removes the copy. Tested by leaving the page, closing the tab
+  and reloading, each less than 800 ms after an edit.
+- **Stored data is validated when read, not when written.** `loadProject` returns a project that passes
+  `ProjectSchema` or a typed failure — `missing`, `invalid` (with the errors and the newest snapshot that
+  is itself still valid), or `unavailable` (the database would not open). It has no path that throws.
+- **Importing never overwrites.** A project file whose id is already stored is saved beside the
+  existing one under a new id, with "(imported)" added to its title. A song file becomes a user song
+  (`u-…`).
+- **Asking the browser to keep the data** happens at the first save, and the answer is remembered
+  (`persistenceAnswer()`); the "quiet warning" itself needs a screen and is Stage 3's Settings.
+- **The catalog is built and tested but not yet wired into the Library or Practice**: listing My songs
+  is S3.1 and playing `u-…` songs is S3.8. Nothing in Practice or the Library changed in this package.
+- **`window.__app.kit()`** gives browser tests projects, the store, storage and the catalog. It loads no
+  audio code, so `e2e/storage.spec.ts` is also run in WebKit in CI — the browser where stored songs
+  are most at risk.
+- **Bundle care.** The first version of this package split the one small file the Library and Practice
+  share into four, because the bundler files shared modules by which screens use them. The storage
+  layer now imports nothing those screens load up front (user songs are normalized by the catalog, not
+  by storage), and Practice downloads the same four files as before: 130.3 KB gzipped, +0.1 KB.
+
+| # | Result |
+| --- | --- |
+| 7 | Pass — `e2e/storage.spec.ts`: edits survive leaving the page, closing the tab and reloading, with no explicit save; a damaged project comes back as `{ ok: false, reason: "invalid", errors, snapshot }` with the newest sound snapshot, skipping damaged ones. |
+| 13 | Pass — a project exported by a real download and imported through a real file picker into an empty database is deep-equal (`e2e/storage.spec.ts`); four seeds of 150 random edits round-trip in `src/project/file.test.ts`; nine kinds of malformed file are each refused with a message that names the problem. |
+
+**What WebKit found.** The storage tests' first WebKit run was in CI (it is not installed in the build
+environment), and one failed: closing a tab outright fires neither `pagehide` nor `visibilitychange`
+there, so edits made in the last 800 ms were lost. The store now also listens for `beforeunload` —
+only while there are unsaved changes, since a page with that listener cannot be kept in some browsers'
+back-forward cache — and never asks the user to confirm. On a phone the app being killed in the
+background fires nothing at all; what protects the author there is `visibilitychange`, which fires as
+the app leaves the screen.
+
+### S2.4 — compile and decompile
+
+- **Muted tracks are not compiled**, unless `opts.tracks` names them. A compiled song is what will be
+  heard; and so that it also carries how loud each part was, `Song.tracks[]` and `Song.drums` gain an
+  optional `volume` (contract change, additive), which S2.5's player takes as its starting mix.
+- **A note's end is swung as well as its start**, so two swung eighths stay long–short and meet end to
+  end; offsets then move the whole note.
+- **A song's `bpm` counts the beat of its time signature**, which is what Practice's arithmetic has
+  always assumed (`60 / bpm` seconds a beat, `timeSignature[0]` beats a bar). A project in 6/8 at 80
+  quarter notes a minute therefore compiles to `bpm: 160`. Now stated in contracts §2 and
+  `docs/song-format.md`.
+- **A song has one time signature**, so a project whose meter changes compiles with its first. Notes,
+  drums and tempo are still right; only Practice's bar numbers would drift after the change. Giving the
+  song format a meter map is the fix when a real song needs it; nothing in this stage does.
+- **Drum-pattern columns divide the bar they land on**, read from the time map at each bar of the clip,
+  so one sixteen-column pattern is sixteenths in 4/4 and fits a bar of 3/4 too.
+- **`projectFromSong` rounds offsets to whole ticks.** At 125 BPM a tick is one millisecond, so a note
+  comes back within half a millisecond of its start and one of its length.
+- **A late first downbeat (`gridOffset`) becomes a whole first bar**, so a pickup has somewhere to sit
+  and nothing lands before tick 0. Compiling such a project gives the song back later by that lead.
+- **A song with no `key`** gets the best fit from `detectKey`, with a line in `source.warnings` saying
+  it was worked out, not given.
+
+| # | Result |
+| --- | --- |
+| 8 | Pass — `src/project/compile.test.ts`: all 1,400 notes of Rewrite the Stars come back within 2 ms of their start and length, with their velocity, hand and section names; fewer than 5% needed an offset of more than ten ticks. Divenire (free time, 2,996 notes) also comes back within 2 ms on its guessed grid, flagged `gridGuessed`. |
+
+### S2.5 — the audio engine
+
+`src/audio/voices.ts` became `src/audio/engine.ts`. The scheduler in `player.ts` is unchanged line for
+line; what changed around it is where its calls go.
+
+- **The engine is one for the page** (`sharedEngine()`), as planned. A player no longer builds and
+  throws away the instruments with each song: it sets the engine the way its listener left things, and
+  on the way out releases what is sounding and drops its tracks. Moving from one song to another keeps
+  the instruments and, where they were downloaded, the piano samples.
+- **Notes played by hand do not go through the limiter. This was not in the plan and is the main thing
+  to know about this package.** The first measurement of criterion 12 came out at exactly 6.0 ms from
+  call to sound, every time, where a bare Web Audio oscillator measured 0.02 ms. The 6 ms is the
+  look-ahead inside the browser's `DynamicsCompressorNode`, which Stage 1 made the master limiter: it
+  delays everything by 265 samples. For a song being played back that is nothing. For a key under a
+  finger it is two render quanta the criterion does not allow. So the engine has a second, parallel
+  path for `noteOn` — the same hands, track strips and mix — that ends in a wave-shaping soft clipper:
+  a straight line below the limiter's ceiling (−3 dBFS), a tanh bend above it, no memory and no delay.
+  It is built the first time a note is played by hand, so **Practice's signal path is exactly what
+  Stage 1 left**, node for node. Measured: a note played by hand at ordinary strength is as loud as the
+  same note scheduled (within 0.05 dB); twenty keys struck at once at full strength peak under full
+  scale; the scheduled note is 6 ms behind the hand-played one.
+- **`engine.prepare(channel)`** builds a channel's instrument and a few of its voices ahead of the first
+  note. Without it the first note of a sound still plays, 10–18 ms late on the build machine while the
+  synthesizer is constructed. Whatever shows keys should call it as they appear (S3.4); Practice, which
+  only schedules, does not.
+- **`setSong(song, { keepPosition })` releases nothing.** What was already asked for (up to 150 ms of
+  listening ahead) still sounds; from the next tick the new song's notes are the ones scheduled. A
+  track that is in both songs keeps its strip and its mute; tracks that are gone are disposed of.
+- **Count-in** clicks are asked for as they come due, like every other click, and notes are not asked
+  for until the usual look-ahead before the start — so pausing during the count leaves nothing waiting
+  to sound. The playhead waits where the music will begin. A song with no tempo is not counted in.
+- **Solo is the player's, not the engine's**: the player tells the engine each track's effective mix,
+  with every track but the soloed one, and the drums, muted.
+- **The drum kit** is sixteen synthesized voices, one per pad, built on first use, with a trim so that
+  all sixteen at once at full strength stay under full scale (−2.8 dBFS). `kit` names are accepted and
+  ignored until Stage 4 installs sampled kits.
+- **`renderPlayed`** (in `src/audio/testing.ts`) runs the real player offline: its scheduler ticks on a
+  clock the harness steps 25 ms at a time against an engine that renders to samples. Stage 0's note
+  that "the real-time loop cannot run offline" no longer holds, and criterion 10 is tested on samples.
+  The player takes its clock and engine as optional arguments to make this possible.
+- **Not built:** more sounds (a bass, a pad, strings), which the plan allows but does not require; the
+  `SoundId` list is unchanged. And the few-millisecond lateness of whatever falls exactly on the
+  position playback starts from (Stage 0's build notes) is still there: the scheduler was not touched.
+- **`newProject` gives its tracks the grand piano**, which starts the sample download the first time
+  such a track sounds, and plays Clear until it arrives — as the Practice sound menu does.
+
+**Bundle (criterion 9).** Practice downloads 135.7 KB of JavaScript, gzipped, in the same four files:
++5.5 KB over the 130.2 KB it was before Stage 2 (the drum synthesizers are 3 of that). The Library
+is unchanged at 54.4 KB and still loads no audio code.
+
+| # | Result |
+| --- | --- |
+| 9 | Pass — `e2e/scheduling.spec.ts` is unchanged and green, with every other Stage 0 and Stage 1 browser test; +5.5 KB. |
+| 10 | Pass — `e2e/engine.spec.ts`. Swapped before the music reaches the edit: the notes asked for are exactly the edited song's, each once, and the render is the same as a clean render of the edited song sample for sample (so it differs nowhere). Swapped after: nothing differs before the edit point. Live in the app, the gaps between notes across the swap are right to 5 ms and the playhead does not move. |
+| 11 | Pass — two tracks on different sounds, free drum hits and a pattern, 120 then 90 BPM: all 10 notes and 11 hits asked for within 5 ms of their compiled times. Soloing a track leaves the others and the drums below −80 dB and the soloed track at its own level. |
+| 12 | Pass, with the measurement described here. Ten pointer taps, each from silence: counted on the audio thread, the note begins in the first render quantum after the audio thread hears of the call (0.00 ms); by the page's own clock, 0.02 ms, the same as a bare oscillator. On a busy machine one or two taps in ten are 3–4 quanta later (8.7–11.6 ms) — and so are the bare oscillator's, because the sound card takes several quanta at a time and the page can be kept waiting; the test asserts the median and at least seven taps in ten, and that none is within sight of a look-ahead. |
+
+**For the owner to hear, not a test to pass:** the live path's clipper bends peaks where the limiter
+would have turned them down. It only acts above −3 dBFS — a fistful of keys at full strength — and
+nothing plays by hand until Stage 3. It is the one audible design decision in this stage that was not
+in the plan.
+
+### S2.7 — Practice on the beat map
+
+- **For a song at one tempo starting on its downbeat, the old arithmetic is still the arithmetic.**
+  `Rhythm` now carries the song's `BeatMap` and a flag, `even`, for exactly that case. `cellAt`,
+  `cellTime`, `barAt` and `barsFrom` in `src/song/rhythm.ts` are where the rhythm map, the coach and the
+  Loop button now get their numbers; for an even song they are the expressions those components used
+  before (`t / cell`, `idx * cell`, `floor(t / barLen) * barLen`), and only otherwise go through the
+  beat map. Going through it for every song would have been simpler and almost always the same — but
+  `(t / beat) * sub` and `t / (beat / sub)` can differ in the last bit, and "bit for bit" was the plan's
+  word. The beat lines and the metronome need no such care: a constant `BeatMap` is defined as
+  `t / beat` and `b * beat`.
+- **Proved, not sampled.** `src/song/rhythm.unchanged.test.ts` holds the old arithmetic of all seven
+  places, frozen, and compares every result of the new code with it by `Object.is`: every moment of the
+  song, every millisecond of its first two minutes, every cell and bar line, every beat line of the
+  waterfall and the trimmer at five zooms, and every metronome click as the scheduler's windows ask for
+  them — for Rewrite the Stars and for two awkward tempos.
+- **What is new** is for songs the bank does not have yet: under a `tempoMap` the rhythm map's bars,
+  the beat lines, the metronome and a count-in follow the tempo; with a `gridOffset` bar 1 starts at
+  the first downbeat and what comes before is the pickup. The rhythm map and the Metronome switch now
+  appear when the song has a beat map (a `tempoMap` with no `bpm` counts), not when it has a `bpm`.
+- **Free time is unchanged**: `beatMapOf` is null, so no rhythm map, no lines, no metronome, and a
+  count-in does not count. Step-through names positions on the nominal 120 grid as it always did.
+- **Measured** at 390 × 844 and 1440 × 900 with the CPU throttled four times: 59–60 frames a second
+  in the waterfall for both songs while playing, the worst frame 33 ms (once), no console errors.
+
+| # | Result |
+| --- | --- |
+| 2 | Pass — the arithmetic test above; and in the browser on the real songs (`e2e/beats.spec.ts`): the rhythm map's labels for Rewrite the Stars at bars 1, 9 and 53 are those worked out from the song file the old way; its metronome clicks are each within 1 ms of 0.48 s apart, accented one in four, on the notes' clock; Divenire shows no rhythm map and no Metronome switch, and nothing clicks. |
+
+### The stage, in sum
+
+| # | Criterion | Result |
+| --- | --- | --- |
+| 1 | `TimeMap` round trip; bars across 4/4 → 3/4 → 6/8 | Pass |
+| 2 | Rewrite the Stars unchanged on `BeatMap`; Divenire no grid | Pass |
+| 3 | `detectKey`, 24 melodies | Pass — 24 of 24 |
+| 4 | `detectChord` and `parseChord` agree on 60 chords; `romanOf` | Pass — 64 chords |
+| 5 | Every edit rule has a test | Pass |
+| 6 | 200 edits, 200 undos, redo | Pass |
+| 7 | Edits survive a closed tab; a damaged project is a typed failure | Pass — in Chromium and, after a fix CI prompted, WebKit |
+| 8 | Rewrite the Stars compiles back within 2 ms | Pass |
+| 9 | Scheduling test unchanged; Practice ≤ +10 KB | Pass — +6.1 KB at the end of the stage (136.2 KB, in the same four files) |
+| 10 | `setSong` during playback: no gap, no doubled note | Pass |
+| 11 | Two tracks, drums, tempo change within 5 ms; solo | Pass |
+| 12 | `noteOn` from a pointer within one render quantum | Pass — see S2.5 for how it was measured, and for the live path it led to |
+| 13 | Export and import deep-equal; malformed refused by name | Pass |
+
+`npm run check` passes: 505 unit tests, 110 browser tests in Chromium (two more skip themselves where
+the piano samples cannot be downloaded).
+
+**Not verified, and for the owner:**
+
+- **Practice in Safari on a real phone.** Playwright's WebKit still cannot load the audio code (Stage 0),
+  so the rebuilt audio path — a shared engine, the same nodes — has been through every Chromium test
+  and no Safari at all. This stage changed Practice's audio more than any before it; it wants the same
+  check by hand that Stage 1 got before anything is built on it.
+- **Storage in WebKit** runs in CI, not here. Its first run found the closed-tab loss fixed above.
+- **A test that was already unsteady.** `e2e/hands.spec.ts` "a tap mutes a hand, and a tap along the
+  slider sets its volume" failed once and passed on retry in CI during this stage. It is a Stage 1
+  test of a touch tap, it does not touch anything this stage changed, and it has not been altered.
+- **The live path's soft clipper** (S2.5) is a sound nobody has listened to yet; nothing reaches it
+  until Stage 3 puts keys on the screen.
+- **One branch, not seven.** The protocol asks for a branch and a pull request for each package. This
+  session could push to one branch only, so the packages are seven commits on it (and one fix), each
+  passing its own checks; no pull request has been opened.
+

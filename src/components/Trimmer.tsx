@@ -1,3 +1,4 @@
+import { beatMapOf, isDownbeat } from "../song/beatmap";
 import { useEffect, useRef, useState } from "react";
 import { playRange, type LoopRange, type Player } from "../audio/player";
 import type { Section, Song } from "../song/types";
@@ -91,20 +92,24 @@ export function Trimmer({ song, player, loop, clears }: Props) {
     const x = (t: number) => ((t - view.start) / span) * w;
 
     // Bar and beat lines once zoomed in far enough to be useful.
-    if (song.bpm) {
-      const beat = 60 / song.bpm;
-      const perBar = song.timeSignature?.[0] ?? 4;
+    const beats = beatMapOf(song);
+    if (beats) {
+      const perBar = beats.beatsPerBar;
+      const from = Math.floor(beats.beatAt(view.start));
+      // How long a beat is here: the song's own beat, or under a tempo map the beat the view starts on.
+      const at = song.tempoMap?.length ? from : 0;
+      const beat = beats.secondsAt(at + 1) - beats.secondsAt(at);
       const pxPerBeat = (beat / span) * w;
       if (pxPerBeat > 6) {
-        for (let b = Math.floor(view.start / beat); b * beat <= view.end; b++) {
-          const isBar = b % perBar === 0;
+        for (let b = from; beats.secondsAt(b) <= view.end; b++) {
+          const isBar = isDownbeat(b, perBar);
           ctx.fillStyle = isBar ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.07)";
-          ctx.fillRect(Math.round(x(b * beat)), 0, 1, h);
+          ctx.fillRect(Math.round(x(beats.secondsAt(b))), 0, 1, h);
           if (isBar && pxPerBeat * perBar > 34) {
             ctx.fillStyle = "rgba(255,255,255,0.45)";
             ctx.font = "500 9px system-ui, sans-serif";
             ctx.textAlign = "left";
-            ctx.fillText(String(b / perBar + 1), x(b * beat) + 3, 10);
+            ctx.fillText(String(b / perBar + 1), x(beats.secondsAt(b)) + 3, 10);
           }
         }
       }

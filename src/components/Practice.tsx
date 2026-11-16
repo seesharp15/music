@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { describe } from "../audio/mix";
 import { Player, SOUNDS, playRange, type SoundId } from "../audio/player";
-import { analyzeRhythm } from "../song/rhythm";
+import { analyzeRhythm, barsFrom } from "../song/rhythm";
 import type { Song } from "../song/types";
 import { restoreSession, saveSession } from "../session";
 import { useWakeLock } from "../useWakeLock";
@@ -116,9 +116,8 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
     if (s) {
       player.setLoop({ enabled: true, start: s.start, end: s.end });
     } else {
-      const bar = rhythm.beat * rhythm.perBar;
-      const start = Math.floor(t / bar) * bar;
-      player.setLoop({ enabled: true, start, end: Math.min(start + 4 * bar, d) });
+      const { start, end } = barsFrom(rhythm, t, 4);
+      player.setLoop({ enabled: true, start, end: Math.min(end, d) });
     }
   };
 
@@ -221,7 +220,7 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
             <PedalIcon />
             Sustain
           </button>
-          {song.bpm && (
+          {rhythm.beats && (
             <button
               className={`chip ${metronome ? "is-on" : ""}`}
               onClick={() => player.setMetronome(!metronome)}
@@ -235,7 +234,7 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
       </div>
 
       {/* A song played freely (no steady tempo) has no beat grid to count along to. */}
-      {song.bpm && <RhythmMap player={player} rhythm={rhythm} mix={mix} duration={player.duration} />}
+      {rhythm.beats && <RhythmMap player={player} rhythm={rhythm} mix={mix} duration={player.duration} />}
       <StepKeys player={player} rhythm={rhythm} />
 
       <div className="stage-wrap">

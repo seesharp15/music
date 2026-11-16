@@ -42,9 +42,15 @@ and speeding up, so files never change for tempo practice.
 ## What v2 adds
 
 All optional, and mostly written by the Studio rather than by hand: `key`, `gridOffset`, `tempoMap`,
-`tracks` (with a `track` id on each note), `chords`, `drums`, `pedal`, `origin`. They are defined in
-`src/song/types.ts` and described in [plan/contracts.md](plan/contracts.md) §2. Nothing in Practice
-reads them yet.
+`tracks` (with a `track` id on each note, and a `volume` each), `chords`, `drums`, `pedal`, `origin`.
+They are defined in `src/song/types.ts` and described in [plan/contracts.md](plan/contracts.md) §2.
+
+`bpm` counts the beat the time signature names: `"bpm": 160, "timeSignature": [6, 8]` is 160 eighth
+notes a minute, six to the bar. `tempoMap` entries count the same way.
+
+A song compiled from a project (`compileProject` in `src/project/compile.ts`) is written in this
+format with the id `u-<projectId>`, and any song can be turned back into a project to edit
+(`projectFromSong`).
 
 ## The index
 

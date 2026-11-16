@@ -25,6 +25,8 @@ export interface AudioEngine {
   setHandMix(hand: Hand, mix: HandMix): void;
   setTrackMix(trackId: string, mix: HandMix): void;
   setDrumMix(mix: HandMix): void;
+  /** Forget every track but these: the player calls it when its song changes. */
+  keepTracks(ids: readonly string[]): void;
   setStereoSplit(on: boolean): void;
   setSustain(down: boolean): void;
   setSound(sound: SoundId): void;
@@ -47,4 +49,6 @@ export interface Sink {
    * pedal has nothing to damp.
    */
   damp?(when?: number): void;
+  /** One drum hit. Optional: a sink with no drums drops them. */
+  drum?(pad: DrumPadId, velocity: number, when: number, kit?: string): void;
 }

@@ -50,8 +50,16 @@ export interface TimeMap {
   positionAt(tick: number): { bar: number; beat: number; tick: number };
   tickOfBar(bar: number): number;
   ticksPerBarAt(tick: number): number;
+  /** The meter in force at a tick. */
+  meterAt(tick: number): MeterEvent;
+  /** The tempo in force at a tick, in quarter notes a minute. */
+  bpmAt(tick: number): number;
 }
+export function makeTimeMap(tempo: TempoEvent[], meter: MeterEvent[]): TimeMap;   // src/music/time.ts
 ```
+
+A beat is the note the meter's denominator names (an eighth in 6/8), so `positionAt` counts six beats in
+a bar of 6/8. Tempo is always in quarter notes a minute.
 
 `BeatMap` is the same idea for a `Song` (seconds only), so Practice can count along to songs whose tempo
 moves. It replaces the constant-`bpm` arithmetic in `src/song/rhythm.ts`, `Stage.tsx` and the metronome.
@@ -110,14 +118,20 @@ export interface Song {
   gridOffset?: number;
   /** Present only when tempo changes; `bpm` stays the nominal value shown in the UI. */
   tempoMap?: { time: number; bpm: number }[];
-  tracks?: { id: string; name: string; role: TrackRole; sound?: SoundId }[];
+  /** `volume` is the track's slider position where the song was written, 0..1. Default 1. */
+  tracks?: { id: string; name: string; role: TrackRole; sound?: SoundId; volume?: number }[];
   chords?: { time: number; duration: number; symbol: string }[];
-  drums?: { kit: string; hits: { pad: DrumPadId; time: number; velocity?: number }[] };
+  drums?: { kit: string; volume?: number; hits: { pad: DrumPadId; time: number; velocity?: number }[] };
   /** Sustain pedal as written or transcribed. Stage 1's toggle ignores this; Stage 9 plays it. */
   pedal?: { time: number; down: boolean }[];
   origin?: { kind: "bank" | "studio" | "import"; projectId?: string; createdAt?: string };
 }
 ```
+
+A song's `bpm` (and each `tempoMap` entry) counts **the beat its time signature names**: a song in 6/8
+at `bpm: 160` has 160 eighth notes a minute, six to the bar. A project's tempo always counts quarter
+notes; `compileProject` and `projectFromSong` convert. A song has one time signature: a project whose
+meter changes compiles with its first.
 
 ### Song index (`public/songs/index.json`)
 
@@ -317,6 +331,19 @@ export function compileProject(p: Project, opts?: {
 export function projectFromSong(song: Song, opts?: { ppqGrid?: 16 | 32 }): Project;
 ```
 
+What compiles: every note track and drum track that is not muted (or exactly the tracks named in
+`opts.tracks`, muted or not). A note is heard at its tick moved by swing and groove, plus its `offset`
+times its track's `feel`; its end is swung too, so a swung pair stays long–short. Drum patterns are
+laid out clip by clip, their columns dividing whatever bar they land on. A pending rhythm and parked
+ideas are never compiled. With `range`, only what starts inside it, cut off at its end.
+
+`projectFromSong` files each note on the nearest grid line and keeps the remainder in `offset`
+(rounded to a tick), so `compileProject(projectFromSong(song))` gives every note back within a tick or
+two — about a millisecond. A v2 song's tracks, chords, sections, drums and tempo changes are rebuilt; a
+v1 song's right hand becomes a Melody track and its left a Chords track. A song with no tempo gets an
+estimated grid and `source.gridGuessed`; one with no key gets the best-fitting key and a line in
+`source.warnings`. A song whose first downbeat comes late (`gridOffset`) gets a whole first bar.
+
 Rules `compileProject` guarantees: output passes `normalize()`; notes are sorted by time then pitch;
 `hand` is the note's override or its track's hand; `track` is the track id; the song id is
 `u-<projectId>`; overlapping notes of the same pitch on one track are trimmed so they never overlap.
@@ -377,6 +404,34 @@ is unchanged. What is not an error is put right silently: notes and chords are k
 ids come from `seq`, `lengthTicks` grows to fit, and `edited` is set when the author changes a note that
 was not their own.
 
+What the operations do at their edges (`src/project/ops.ts`, each with a test):
+
+- A patch key present with the value `undefined` removes that field (`patch: { offset: undefined }`).
+- `setChords` replaces the chords that *start* inside `range`; the new chords must start inside it too.
+  A chord running in from before the range is left alone, so a new chord under it is an `overlap`.
+  Symbols are stored in the theory kernel's canonical spelling; one it cannot read is a `badValue`.
+- `addTrack` gives the track's notes, hits and clips fresh ids from `seq`, whatever ids they came with.
+- An op addressed to a track of the wrong kind (notes into a drum track) is a `badValue`. A tick before
+  0 is `outOfRange`.
+- A locked track refuses every op addressed to it — `removeTrack` and `setPending` included — except a
+  `patchTrack` whose patch says `locked: false`. The range operations are addressed to the whole song
+  and move locked tracks with the rest.
+- `insertTime` moves whatever starts at or after the point; a section the point falls inside grows.
+  Tempo, meter and key changes move too, except those at tick 0.
+- `deleteTime` removes what starts inside the range, cuts short the notes and chords that run into it,
+  and leaves in force at the join whatever tempo, meter and key were in force at the end of the cut.
+- `copyRange` copies what starts inside the range (notes, chords, hits, clips, and sections wholly
+  inside it), cut off at the range's end, with fresh ids and the same `origin`. A chord sounding across
+  the destination is split there.
+- `patchSong` puts tempo, meter and key entries in tick order; `lengthTicks` below the end of the music
+  is raised to it.
+
+The store built in Stage 2 (`createProjectStore` in `src/project/store.ts`) offers a little more than
+the interface: `undoLabel`, `redoLabel` and `saveError` in its state, `flush()`, and `dispose()`. It saves
+through a `ProjectPersistence` (`save(project, { snapshot })`, and an optional synchronous `saveNow` for
+the moment the page goes away), which `src/storage` implements. `updatedAt` is stamped on the copy that
+is saved, not by `apply`: edits are deterministic and an undo restores the project exactly.
+
 An option from the assistant, a hummed take and a pasted clipboard are all just `EditOp[]`. That single
 shape is what makes preview, accept, partial accept and undo work the same way everywhere.
 
@@ -403,6 +458,8 @@ export interface AudioEngine {
   setHandMix(hand: Hand, mix: HandMix): void;
   setTrackMix(trackId: string, mix: HandMix): void;
   setDrumMix(mix: HandMix): void;
+  /** Forget every track but these: the player calls it when its song changes. */
+  keepTracks(ids: readonly string[]): void;
   setStereoSplit(on: boolean): void;
   setSustain(down: boolean): void;
   setSound(sound: SoundId): void;
@@ -413,9 +470,34 @@ export interface AudioEngine {
 export interface Channel { hand: Hand; track?: string; sound?: SoundId }
 ```
 
+The engine (`Engine` in `src/audio/engine.ts`; `sharedEngine()` is the page's one) also offers
+`prepare(ch)` — build a channel's instrument before its first note is played by hand — `tap(node)` — a
+copy of everything it puts out, for a meter or a recorder — and `onPiano(fn)`.
+
+**Two paths.** What the player schedules goes instrument → track strip → hand → master → limiter. What
+is played by hand (`noteOn`, `noteOff`) goes through a second set of hands and strips, with the same
+mix, that ends in a soft clipper instead: a browser's compressor delays everything by 6 ms, and the
+clipper delays nothing. A note played by hand is therefore asked for at the audio clock's present
+moment and heard in the next render quantum. The live path is built the first time it is used.
+
 `PlayerState` changes (Stage 1): `levels: Record<Hand, HandLevel>` becomes `mix: Record<Hand, HandMix>`,
-and `sustain: boolean` is added. Stage 2 adds `trackMix`, `drumMix`, `setSong(song, { keepPosition })` for
-hot-swapping the compiled song while editing, and scheduling of `drums` and `tracks`.
+and `sustain: boolean` is added. Stage 2 adds, to the state, `trackMix: Record<string, HandMix>`,
+`drumMix: HandMix`, `solo: string | null` and `countIn: boolean`; and to the player:
+
+```ts
+/** Swap the song. With keepPosition a running transport carries on: no gap, no note played twice. */
+setSong(song: Song, opts?: { keepPosition?: boolean }): void;
+setTrackMix(trackId: string, patch: Partial<HandMix>): void;
+setDrumMix(patch: Partial<HandMix>): void;
+/** Hear one track alone (the others and the drums fall silent), or with null everything again. */
+solo(trackId: string | null): void;
+/** Clicks for that many bars first, at the tempo where playback starts and the current speed. */
+play(opts?: { countInBars?: number }): Promise<void>;
+```
+
+A song's `tracks[].volume` and `drums.volume` are the mix the player starts with. A note with a `track`
+is played on that track's strip and sound; a note without one goes straight to its hand, as every bank
+song's do. `new Player(song, prefs, { engine, clock })` lets a test supply its own engine and clock.
 
 `inputLatencyMs()` in `src/audio/latency.ts` returns the calibrated input latency stored under
 `piano-tutor:latency`, or 0 when this device has not been calibrated. Every recording path — live notes,
@@ -433,6 +515,8 @@ export interface Sink {
   releaseAll(): void;
   /** Silence notes ringing on under the sustain pedal, without lifting it. A loop coming round uses it. */
   damp?(when?: number): void;
+  /** One drum hit. Optional: a sink with no drums drops them. */
+  drum?(pad: DrumPadId, velocity: number, when: number, kit?: string): void;
 }
 ```
 
@@ -746,6 +830,8 @@ Local-first: a song the author builds lives in their browser until they export i
 | `localStorage` | `piano-tutor:flags` | feature flags turned on by hand |
 | `localStorage` | `piano-tutor:access-code` | the code sent as `x-access-code` |
 | `localStorage` | `piano-tutor:latency` | measured input latency per device, ms |
+| `localStorage` | `piano-tutor:storage-persist` | what the browser answered when asked to keep this site's data: `persisted`, `refused` or `unsupported` |
+| `localStorage` | `piano-tutor:unsaved:<projectId>` | a project written as the page closed, when the database write may not have finished; picked up and removed by the next load |
 | `sessionStorage` | `piano-tutor:session:<songId>` | position, speed, loop, zoom, mix (existing, migrated) |
 | IndexedDB `piano-tutor` | store `projects` | `Project` by id |
 | | store `projectMeta` | `{ id, title, updatedAt, bars, preview }` for fast listing |
@@ -757,6 +843,30 @@ Local-first: a song the author builds lives in their browser until they export i
 | | | `assist:profile` — the author's preferences across all songs |
 | | | `studio:<projectId>` — cursor, zoom, active track, tool, hint mode, authorship view |
 | | | `chat:<projectId>` — the last thirty co-writer turns |
+| | | `songs:index` — a listing entry (`SongIndexEntry` plus `updatedAt`, `projectId`) for every user song, so the Library never opens one to draw its card |
+
+`src/storage/` is the only code that touches the database. What it promises:
+
+```ts
+/** Never throws, never returns a half-valid project. */
+export function loadProject(id: string): Promise<
+  | { ok: true; project: Project; recovered?: "unsaved" }
+  | { ok: false; reason: "missing" }
+  | { ok: false; reason: "invalid"; errors: string[]; snapshot: { project: Project; at: string } | null }
+  | { ok: false; reason: "unavailable"; message: string }>;
+export function saveProject(project: Project, opts?: { snapshot?: boolean }): Promise<void>;
+export const projectPersistence: ProjectPersistence;          // what the project store saves through
+/** Reads a picked file and stores what is in it; refuses with a message that names the problem. */
+export function importFile(file: Blob): Promise<Imported>;
+```
+
+Projects and user songs are stored as written and **validated on the way out** (`parseProject`,
+`parseSong`); a user song is normalized when the catalog loads it, as a bank song is when fetched.
+`Catalog` (`src/library/catalog.ts`) merges the bank index with user songs: `list()`, `find(id)`,
+`load(id)`, `projects()`. An id starting `u-` is looked for on the device, any other in the bank.
+
+A project file is the project as JSON (`<title>.piano-project.json`); a song file is the song
+(`<title>.piano-song.json`). Importing a project whose id is already stored keeps both.
 
 Exporting one project writes the project alone. "Export all my songs" (Stage 3) also carries each
 project's `kv` entries and takes.
