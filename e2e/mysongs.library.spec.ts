@@ -62,10 +62,17 @@ test("My songs lists every project, newest first, above the song bank, with a ca
   const bank = await page.getByRole("heading", { name: "Song bank" }).boundingBox();
   expect(mine!.y).toBeLessThan(bank!.y);
 
-  // And on its own page.
+  // And on its own page — which, like the Library, downloads none of the audio code: the editor
+  // behind each card is fetched when a song is opened, not to list them.
+  const scripts: string[] = [];
+  page.on("request", (r) => {
+    if (r.url().endsWith(".js")) scripts.push(new URL(r.url()).pathname);
+  });
   await page.goto("/?flags=test-hooks,studio#/studio");
   await expect(page.getByRole("heading", { level: 1, name: "My songs" })).toBeVisible();
   await expect(cards(page)).toHaveCount(2);
+  expect(scripts.length).toBeGreaterThan(0);
+  expect(scripts.filter((s) => /player-|OpenProject-/.test(s))).toEqual([]);
 });
 
 test("rename, duplicate and delete from a card's menu, by mouse and by keyboard", async ({ page }) => {

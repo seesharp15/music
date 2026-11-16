@@ -149,18 +149,33 @@ test("during playback the music scrolls past the line; stopping returns to the c
   expect((await view(page)).tick).toBe(480);
 });
 
-test("closing the tab and reopening restores the cursor, the zoom, the tool and the active track", async ({
+// ── Acceptance criterion 11, first half ──
+test("closing the tab mid-edit and reopening restores the project, the cursor, the zoom, the tool and the active track", async ({
   page,
   context,
 }) => {
   await studioWith(page, TUNE);
   await settled(page);
+  // An edit, through the editor's own store, and then the tab is gone — no save, no waiting.
+  await page.evaluate(() =>
+    window.__app!.store!.apply(
+      [
+        { op: "addNotes", trackId: "bass", notes: [{ pitch: 36, tick: 2400, dur: 480, vel: 0.8, origin: "manual" }] },
+        { op: "patchSong", patch: { title: "Edited a moment ago" } },
+      ],
+      "Edit",
+    ),
+  );
   await setUi(page, { cursor: 2400, ticksPerPx: 9.5, tool: "draw", activeTrack: "bass" });
   // Closed at once: sooner than the editor state is due to be written to the database.
   await page.close({ runBeforeUnload: true });
 
   const again = await context.newPage();
   await openProject(again, "tune");
+  const reopened = await again.evaluate(() => window.__app!.store!.getState().project);
+  expect(reopened.title).toBe("Edited a moment ago");
+  const bass = reopened.tracks.find((t) => t.id === "bass")!;
+  expect(bass.kind === "notes" && bass.notes.map((n) => [n.pitch, n.tick])).toEqual([[36, 2400]]);
   expect(await ui(again)).toMatchObject({ cursor: 2400, ticksPerPx: 9.5, tool: "draw", activeTrack: "bass" });
   await settled(again);
   expect((await view(again)).tick).toBe(2400);
