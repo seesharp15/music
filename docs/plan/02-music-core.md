@@ -225,3 +225,35 @@ S2.3's autosave needs it.
 - **On the bank:** Rewrite the Stars comes back as 125.00 BPM, 4/4, straight, confidence 1.0, in 17 ms.
   Divenire comes back as a guess with confidence 0.04 — which is the honest answer for free time, and is
   what `projectFromSong` will flag with `gridGuessed`.
+
+### S2.2 — theory kernel and analysis
+
+- **The kernel owns the chord table; `tonal` reads around it.** 43 qualities, each with one canonical
+  name, its notes, and the other spellings it is read from (`CM7`, `C-7`, `Cø`, `C+7`, `C69`, `C7alt` …).
+  `tonal` supplies scale spelling (the E# of F# major) and reads spellings the table does not list;
+  whatever it makes of one is then named from the table, so a library update cannot change a stored
+  symbol. A test checks that no two qualities share a set of notes.
+- **Degrees and Roman numerals are counted in the key's own scale.** In A minor, C is degree `3` and the
+  chord `III`; C# is `#3`; E major is `V`; G#dim is `#vii°`. (The other convention writes those against
+  the major scale: `b3`, `bIII`.) One rule serves `degreeOf`, `romanOf` and `spell`, and it is the one
+  classical harmony uses for minor keys. `GridBar.degree` (contracts §7) follows it.
+- **A Roman numeral says nothing of the inversion**: `F/A` in C is `IV`. `chordOfRoman(romanOf(x))`
+  gives back the root-position chord; a test round-trips all 43 qualities on all 12 roots in four keys.
+- **`detectChord` takes the lowest pitch as the bass.** A reading rooted on the bass beats an inversion,
+  a simpler chord beats a fancier one, and a chord missing its fifth is still named. Rootless voicings
+  are not guessed at. An optional key decides how roots are spelled (`C#` in F# major, `Db` otherwise).
+- **`substitutesFor` returns reasons, not just symbols** (`relative`, `mediant`, `tritone`,
+  `leadingTone`, `suspended`, `parallel`, and whether the substitute stays in the key), because Stage 5
+  must explain every option in plain words.
+- **Key finding uses Temperley's 1999 profiles**, and reports all 24 keys with a confidence that sums
+  to 1. `findKeyChanges` is the windowed form. `spellPitchClass`, `scaleNames`, `parseKey`, `keyName`,
+  `canonicalChord` and `areRelative` are small additions the plan's table does not list.
+- **Analysis reduces chords to their top note** (`melodyLine`) before measuring a line; `rangeOf` alone
+  counts every note. Motif matching is exact on intervals and on the ticks between onsets, so it wants
+  quantized notes — which is what a project holds.
+
+| # | Result |
+| --- | --- |
+| 3 | Pass — 24 of 24 keys right (`src/music/fixtures/melodies.ts`, twelve major and twelve minor tunes, one on each tonic). The runner-up is usually the dominant or the parallel key, not the relative. |
+| 4 | Pass — 64 chords, each parsed and detected to the same symbol; Roman numerals for the diatonic chords of C major and A minor (triads and sevenths), the borrowed chords of both, and secondary dominants. |
+
