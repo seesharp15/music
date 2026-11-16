@@ -219,6 +219,7 @@ function StudioBar({ wide }: { wide: boolean }) {
               { label: "Export as MIDI", onSelect: () => exportMidi(store.getState().project) },
               { label: "Export song for the bank", onSelect: () => exportBankSong(store.getState().project) },
               { label: "Keyboard shortcuts", onSelect: () => setDialog("keys") },
+              { label: "Storage and backup", onSelect: () => (window.location.hash = "#/settings") },
               { label: "Delete…", danger: true, onSelect: () => setDialog("delete") },
             ]}
           />

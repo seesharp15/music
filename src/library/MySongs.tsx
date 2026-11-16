@@ -13,6 +13,7 @@ import {
   settled,
   studioHref,
 } from "../studio/projects";
+import { KeepSafe } from "./KeepSafe";
 import "../app/ui/ui.css";
 import "./mysongs.css";
 
@@ -64,10 +65,13 @@ export default function MySongs({ heading = "h2" }: { heading?: "h1" | "h2" }) {
       const result = await pickAndImport();
       if (!result) return;
       if (!result.ok) return setNotice(result.message);
+      const count = (n: number) => `${n} ${n === 1 ? "song was" : "songs were"}`;
       setNotice(
-        result.from === "midi"
-          ? `“${result.project.title}” was brought in from the MIDI file. Open it to check the hands and the key.`
-          : `“${result.project.title}” was imported.`,
+        result.from === "backup"
+          ? `${count(result.added)} imported from the backup${result.same ? `; ${result.same} already here` : ""}${result.besides ? `; ${result.besides} kept beside a different version` : ""}${result.skipped ? `; ${result.skipped} left out as damaged` : ""}.`
+          : result.from === "midi"
+            ? `“${result.project.title}” was brought in from the MIDI file. Open it to check the hands and the key.`
+            : `“${result.project.title}” was imported.`,
       );
     } catch (e) {
       setNotice(`The file could not be imported (${e instanceof Error ? e.message : String(e)}).`);
@@ -79,9 +83,14 @@ export default function MySongs({ heading = "h2" }: { heading?: "h1" | "h2" }) {
   const projects = state.status === "ready" ? state.projects : [];
   return (
     <section aria-labelledby="mysongs-title" className="mysongs">
-      <Heading id="mysongs-title" className="lib-heading">
-        My songs
-      </Heading>
+      <div className="mysongs-head">
+        <Heading id="mysongs-title" className="lib-heading">
+          My songs
+        </Heading>
+        <a className="mysongs-settings" href="#/settings">
+          Storage and backup
+        </a>
+      </div>
       {state.status === "error" && (
         <p className="mysongs-notice" role="alert">
           Your songs could not be read from this device ({state.message}).
@@ -119,6 +128,7 @@ export default function MySongs({ heading = "h2" }: { heading?: "h1" | "h2" }) {
           />
         ))}
       </div>
+      {state.status === "ready" && <KeepSafe projects={projects} />}
       {dialog?.kind === "rename" && (
         <PromptDialog
           title="Rename song"

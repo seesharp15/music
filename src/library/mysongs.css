@@ -20,3 +20,11 @@
 .card-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .has-menu .card-genre { margin-right: 40px; }
 .card-failed { display: block; padding: 0 12px 10px; color: #ff8a80; font-size: 0.8rem; }
+.mysongs-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.mysongs-settings { color: var(--muted); font-size: 0.8rem; }
+.keep-safe { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.keep-note { padding: 10px 12px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); }
+.keep-note p { margin: 0 0 8px; color: var(--muted); font-size: 0.85rem; line-height: 1.45; }
+.keep-note strong { color: var(--text); font-weight: 600; }
+.keep-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.keep-actions .chip { height: 44px; text-decoration: none; color: inherit; }

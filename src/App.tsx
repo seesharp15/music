@@ -10,6 +10,7 @@ const LibraryRoute = lazy(() => import("./library/LibraryRoute"));
 const PracticeRoute = lazy(() => import("./app/routes/PracticeRoute"));
 const CreditsRoute = lazy(() => import("./app/routes/CreditsRoute"));
 const StudioRoute = lazy(() => import("./studio/StudioRoute"));
+const SettingsRoute = lazy(() => import("./app/settings/SettingsRoute"));
 
 /** Routes are in the hash (`#/play/divenire`), so the app works on any static host. */
 export function App() {
@@ -45,6 +46,13 @@ export function App() {
                   <StudioRoute projectId={projectId} />
                 </Screen>
               )}
+            </Route>
+          )}
+          {studio && (
+            <Route path="/settings">
+              <Screen>
+                <SettingsRoute />
+              </Screen>
             </Route>
           )}
           <Route path="/credits">

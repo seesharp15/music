@@ -10,7 +10,7 @@ import { newProjectId } from "../project/new";
 import type { Project } from "../project/types";
 import { loadSong } from "../song/load";
 import type { Song, SongIndexEntry } from "../song/types";
-import { download, loadProject, openDb, pickFile, saveProject, saveSong } from "../storage";
+import { download, isBackup, loadProject, openDb, pickFile, restoreBackup, saveProject, saveSong } from "../storage";
 import { practiceHref } from "./projects";
 
 /** Compile a project and keep the song where Practice will find it. Returns the song. */
@@ -44,7 +44,9 @@ export const exportMidi = (project: Project) =>
   download(`${slug(project.title)}.mid`, projectToMidi(project) as BlobPart, "audio/midi");
 
 export type Imported =
-  { ok: true; project: Project; from: "project" | "song" | "midi" } | { ok: false; message: string };
+  | { ok: true; project: Project; from: "project" | "song" | "midi" }
+  | { ok: true; from: "backup"; added: number; same: number; besides: number; skipped: number }
+  | { ok: false; message: string };
 
 const isMidiName = (name: string) => /\.(mid|midi|smf)$/i.test(name);
 const titleFrom = (name: string) =>
@@ -79,7 +81,21 @@ export async function importFile(file: File): Promise<Imported> {
       throw err;
     }
   } else {
-    const read = readFile(new TextDecoder().decode(bytes));
+    const text = new TextDecoder().decode(bytes);
+    // A backup holds many songs: it is restored, not opened.
+    let raw: unknown = null;
+    try {
+      raw = JSON.parse(text);
+    } catch {
+      /* not JSON: readFile below says so in words */
+    }
+    if (isBackup(raw)) {
+      const restored = await restoreBackup(raw);
+      if (!restored.ok) return restored;
+      const { added, same, besides, skipped } = restored;
+      return { ok: true, from: "backup", added, same, besides, skipped: skipped.length };
+    }
+    const read = readFile(text);
     if (!read.ok) return { ok: false, message: read.message };
     if (read.kind === "project") {
       project = read.project;

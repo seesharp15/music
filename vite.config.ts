@@ -1,4 +1,6 @@
-import { defineConfig } from "vite";
+import { createHash } from "node:crypto";
+import { readdirSync } from "node:fs";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 
 /**
@@ -15,7 +17,41 @@ function sharedWithPractice(id: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Tell the service worker (src/sw.ts, built to /sw.js) which files make up the app, so it can keep
+ * them all for offline use, and give that set of files a name that changes when any of them does.
+ * Files only tests load are left out.
+ */
+function precacheList(): Plugin {
+  return {
+    name: "precache-list",
+    apply: "build",
+    generateBundle(_options, bundle) {
+      const files = Object.keys(bundle)
+        .filter((f) => f !== "sw.js" && !/^assets\/(testKit|testing)-/.test(f) && !f.endsWith(".html"))
+        .concat(["manifest.webmanifest", ...readdirSync("public/icons").map((f) => `icons/${f}`)])
+        .sort();
+      const version = createHash("sha256").update(files.join("\n")).digest("hex").slice(0, 12);
+      const sw = bundle["sw.js"];
+      if (sw?.type !== "chunk") throw new Error("the service worker was not built");
+      sw.code = sw.code
+        .replace(/__PRECACHE__/g, JSON.stringify(files))
+        .replace(/__VERSION__/g, JSON.stringify(version));
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react()],
-  build: { rollupOptions: { output: { manualChunks: sharedWithPractice } } },
+  plugins: [react(), precacheList()],
+  build: {
+    rollupOptions: {
+      input: { main: "index.html", sw: "src/sw.ts" },
+      output: {
+        manualChunks: sharedWithPractice,
+        // The service worker lives at the root, under a name that never changes: a browser looks
+        // for it there to see whether there is a new one.
+        entryFileNames: (chunk) => (chunk.name === "sw" ? "sw.js" : "assets/[name]-[hash].js"),
+      },
+    },
+  },
 });
