@@ -385,6 +385,34 @@ is unchanged. What is not an error is put right silently: notes and chords are k
 ids come from `seq`, `lengthTicks` grows to fit, and `edited` is set when the author changes a note that
 was not their own.
 
+What the operations do at their edges (`src/project/ops.ts`, each with a test):
+
+- A patch key present with the value `undefined` removes that field (`patch: { offset: undefined }`).
+- `setChords` replaces the chords that *start* inside `range`; the new chords must start inside it too.
+  A chord running in from before the range is left alone, so a new chord under it is an `overlap`.
+  Symbols are stored in the theory kernel's canonical spelling; one it cannot read is a `badValue`.
+- `addTrack` gives the track's notes, hits and clips fresh ids from `seq`, whatever ids they came with.
+- An op addressed to a track of the wrong kind (notes into a drum track) is a `badValue`. A tick before
+  0 is `outOfRange`.
+- A locked track refuses every op addressed to it — `removeTrack` and `setPending` included — except a
+  `patchTrack` whose patch says `locked: false`. The range operations are addressed to the whole song
+  and move locked tracks with the rest.
+- `insertTime` moves whatever starts at or after the point; a section the point falls inside grows.
+  Tempo, meter and key changes move too, except those at tick 0.
+- `deleteTime` removes what starts inside the range, cuts short the notes and chords that run into it,
+  and leaves in force at the join whatever tempo, meter and key were in force at the end of the cut.
+- `copyRange` copies what starts inside the range (notes, chords, hits, clips, and sections wholly
+  inside it), cut off at the range's end, with fresh ids and the same `origin`. A chord sounding across
+  the destination is split there.
+- `patchSong` puts tempo, meter and key entries in tick order; `lengthTicks` below the end of the music
+  is raised to it.
+
+The store built in Stage 2 (`createProjectStore` in `src/project/store.ts`) offers a little more than
+the interface: `undoLabel`, `redoLabel` and `saveError` in its state, `flush()`, and `dispose()`. It saves
+through a `ProjectPersistence` (`save(project, { snapshot })`, and an optional synchronous `saveNow` for
+the moment the page goes away), which `src/storage` implements. `updatedAt` is stamped on the copy that
+is saved, not by `apply`: edits are deterministic and an undo restores the project exactly.
+
 An option from the assistant, a hummed take and a pasted clipboard are all just `EditOp[]`. That single
 shape is what makes preview, accept, partial accept and undo work the same way everywhere.
 

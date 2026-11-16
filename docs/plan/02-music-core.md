@@ -257,3 +257,35 @@ S2.3's autosave needs it.
 | 3 | Pass — 24 of 24 keys right (`src/music/fixtures/melodies.ts`, twelve major and twelve minor tunes, one on each tonic). The runner-up is usually the dominant or the parallel key, not the relative. |
 | 4 | Pass — 64 chords, each parsed and detected to the same symbol; Roman numerals for the diatonic chords of C major and A minor (triads and sevenths), the borrowed chords of both, and secondary dominants. |
 
+### S2.3 — project schema, edit operations, the store
+
+Built before S2.6, not after: the store saves through a two-method interface (`ProjectPersistence`),
+which S2.6 then implements over IndexedDB. Criterion 7 is therefore checked in S2.6.
+
+- **Undo does not use Immer's patches.** They address list items by position, so one note inserted near
+  the start of a 3,000-note track is recorded as 3,000 replaced items. Measured: 200 such edits made
+  624,282 patches and 83 MB of history, against the plan's budget of 5 MB, and took 11 ms an edit.
+  `src/project/delta.ts` instead compares the project before and after an edit by identity — `applyOps`
+  shares every unchanged part — and records which items left a list and which arrived. The same 200
+  edits now hold **41 KB**, at 4 ms an edit. Immer is still what makes `applyOps` all-or-nothing and
+  what applies a delta; Zustand's vanilla store holds the state, as planned.
+- **`applyOps` is checked by properties as well as cases**: a seeded generator (`src/project/testing/
+  random.ts`) produces valid edits of all 23 kinds; after each of 2,400 the project must still pass
+  `checkProject`, and at the end `ProjectSchema`.
+- **`ProjectSchema` is strict** — an unknown field is an error, not something silently dropped — and it
+  checks the rules a shape cannot express (unique ids below `seq`, sorted notes, chords that do not
+  overlap, clips whose pattern exists, a length that covers the music). `parseProject` is the door:
+  it never throws and returns either a project or a list of what is wrong, each with its path.
+- **`updatedAt` is stamped on the saved copy**, not by `apply`, so an edit is deterministic and an undo
+  restores the project exactly.
+- **What the plan left open about the range operations** is now written down in contracts §5: notes
+  held across a cut are cut short; a section a gap opens inside grows; a chord sounding across a copy's
+  destination is split; locked tracks move with the rest.
+- **The pure zone now uses Immer** (`ops.ts`, `delta.ts`). It has no DOM or audio in it and runs on a
+  server, so it belongs; `store.ts` (Zustand, timers, page events) stays outside, as the plan has it.
+
+| # | Result |
+| --- | --- |
+| 5 | Pass — `src/project/ops.test.ts`: 16 unknown-id cases, 8 out-of-range, 38 bad-value, 3 overlap and 16 locked-track cases, each asserting the code, the index of the refused op, and a project deep-equal to before; and each silent correction. |
+| 6 | Pass — `src/project/store.test.ts`, three seeds: 200 random edits, 200 undos (each step compared with the state on the way there), 200 redos. Undo history for 200 steps on a 3,000-note project: 41 KB. |
+
