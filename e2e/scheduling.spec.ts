@@ -88,13 +88,14 @@ test("a loop comes round without a gap or a stumble", async ({ page }) => {
 });
 
 test("the metronome clicks on every beat and accents the first of the bar", async ({ page }) => {
-  const run = await record(page, { rate: 1, forMs: 2300, metronome: true });
+  const run = await record(page, { rate: 1, forMs: 2800, metronome: true });
   // 120 BPM: a beat every 0.5 s from the start of the song.
-  expect(run.clicks.length).toBeGreaterThanOrEqual(4);
-  expect(run.clicks.slice(0, 5).map((c) => c.accent)).toEqual(
-    [true, false, false, false, true].slice(0, run.clicks.length),
-  );
-  const gaps = run.clicks.slice(1, 4).map((c, i) => c.when - run.clicks[i].when);
+  expect(run.clicks.length).toBeGreaterThanOrEqual(5);
+  expect(run.clicks.slice(0, 5).map((c) => c.accent)).toEqual([true, false, false, false, true]);
+  // The click on the very first beat cannot be asked for in the past, so it sounds as soon as playback
+  // has started: a few milliseconds late, more on a busy machine. Every click after it is exact.
+  expect(Math.abs(run.clicks[0].when - run.startedAt)).toBeLessThan(30 * MS);
+  const gaps = run.clicks.slice(2, 5).map((c, i) => c.when - run.clicks[i + 1].when);
   gaps.forEach((gap) => expect(Math.abs(gap - 0.5)).toBeLessThan(5 * MS));
   // Clicks and notes share a clock: the second click and the first note are both at 0.5 s.
   expect(Math.abs(run.clicks[1].when - run.notes[0].when)).toBeLessThan(5 * MS);
