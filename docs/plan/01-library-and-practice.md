@@ -15,7 +15,7 @@ Library gains "My songs") · **Size:** medium · **Flag:** none — this stage s
 
 ## Reading of the request
 
-"L/R sound toggle" is taken to mean the Left / Right chips in the Hands panel that cycle
+*(Confirmed by the owner on the built version, 16 November 2026.)* "L/R sound toggle" is taken to mean the Left / Right chips in the Hands panel that cycle
 On → Soft → Off. The separate "Stereo split" chip (left hand in the left ear) is unchanged. If the
 owner meant Stereo split, only S1.4's UI moves; the engine work is the same.
 
@@ -226,7 +226,10 @@ or coordinate.
 
 13. A 0.2 s note, measured against its own level at its written end: with Sustain on it is no more than
     20 dB down after 1.5 s and at least 50 dB down by 8 s; with Sustain off it is at least 40 dB down
-    within 1.2 s.
+    within 1.2 s. The sampled grand piano is held to a different first figure, because a recording dies
+    away at its own pace: under the pedal it stays within 3 dB of the same note with the key held down,
+    at half a second and at a second and a half. *(The piano clause was added on 16 November 2026 with
+    the owner's agreement. See Build notes.)*
 14. Switching Sustain off during ringing reaches silence within 200 ms.
 15. Playing Divenire's densest 20 seconds with Sustain on, on each of the five sounds: no "max polyphony"
     warning, no dropped note, and the output peak stays under 0 dBFS.
@@ -320,21 +323,22 @@ than half the size of the old one.
 | 8, 9 | Pass — `e2e/audio/mix.spec.ts`: 12 dB at half, 24 dB at a quarter, silence when muted, no click. |
 | 10 | Pass — unit test in `src/session.test.ts` and a browser test. |
 | 11 | Pass — `e2e/hands.spec.ts`. |
-| 12 | Pass by keyboard, mouse and emulated touch at 390 px; **not yet tried on a real phone.** |
-| 13 | Pass on the four synthesized sounds. Grand piano: **not met as written** — see "The grand piano and criterion 13". |
+| 12 | Pass by keyboard, mouse and emulated touch at 390 px, and on the owner's phone. |
+| 13 | Pass, as reworded for the grand piano — see "The grand piano and criterion 13". |
 | 14 | Pass on all five sounds. |
 | 15 | Pass on all five sounds (the grand piano in CI, where its samples can be downloaded). |
 | 16 | Pass — `e2e/sustain.spec.ts`. |
 | 17 | Pass — the Stage 0 scheduling tests are unchanged and green; one more checks that the pedal does not move any note. |
 
-### Not verified
+### Checked by the owner
 
-- **A real iPhone.** Everything above was measured in desktop Chromium. The plan asks the owner to try
-  each milestone on a phone; this is that moment (M1).
-- **By ear.** The sustain's numbers are right; whether a six-second ring *sounds* right on each of the
-  five sounds is a listening judgement. `RING_T60` in `src/audio/voices.ts` is the one number to change.
-- **Safari.** Playwright's WebKit cannot load the app's audio code at all (Stage 0's build notes), so
-  the Library is tested there and Practice is not. Practice on Safari needs a phone.
+On 16 November 2026, after the work went live, the owner tried it on their own phone and reported that
+everything works as expected. That covers what no test here could: Practice in Safari on a real device,
+and the sustain by ear — the six-second ring stays as it is. They also confirmed that the hand volume
+controls are what was meant by the "L/R sound toggle".
+
+Still true: Playwright's WebKit cannot load the app's audio code (Stage 0's build notes), so every later
+change to Practice needs the same check by hand.
 
 ### The grand piano and criterion 13
 
@@ -349,6 +353,4 @@ most of its level in the first second whether the damper is up or not, and the s
 
 So the piano is tested against "rings like a held key" (`e2e/audio/sustain.spec.ts`), which is what a
 sustain pedal does, and the fixed figure is kept for the synthesized sounds, where there is no recording
-to defer to. **For the owner:** this changes what criterion 13 asks of one sound out of five. If you
-would rather the piano rang longer than it was recorded, that is possible but it would no longer sound
-like the instrument; say so and it becomes a setting.
+to defer to. The owner agreed to this on 16 November 2026, and criterion 13 above now says so.

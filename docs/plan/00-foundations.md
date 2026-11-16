@@ -140,7 +140,10 @@ land S0.4 first.
 2. CI runs on every pull request and blocks merging when any step fails.
 3. Opening `#rewrite-the-stars` lands on `#/play/rewrite-the-stars` with the song loaded; `#/play/divenire`
    loads Divenire; the browser's back button works between two songs.
-4. The Practice smoke test and the scheduling test pass in Chromium; the smoke test passes in WebKit.
+4. The Practice smoke test and the scheduling test pass in Chromium. The Library and routing tests pass
+   in WebKit, and Practice on Safari is checked by hand on a phone at each milestone. *(Reworded on
+   16 November 2026 with the owner's agreement; it first asked for the smoke test to pass in WebKit,
+   which Playwright's WebKit cannot do. See Build notes.)*
 5. A deliberate regression (for example, making `playRange` ignore the window) fails a test.
 6. The production bundle for `#/play/:id` is no more than 5 KB gzipped larger than before this stage.
 7. A file in `src/music/` that imports `react` or reads `window` fails `npm run typecheck` or `npm run lint`.
@@ -200,7 +203,7 @@ Built 15–16 November 2026. What differed from the plan, and why.
 | 1 | Pass, locally and in CI. |
 | 2 | CI runs on every push. Blocking merges is not set up: it needs branch protection (owner). |
 | 3 | Pass — `e2e/routes.spec.ts`. |
-| 4 | Chromium: pass. WebKit: **not met as written — see below.** The Library and routing tests run there instead. |
+| 4 | Pass, as reworded: Chromium runs everything, WebKit runs the Library and routing, and the owner checked Practice on a phone. |
 | 5 | Pass — breaking `playRange` fails four unit tests; making the scheduler ignore speed fails the half-speed test. |
 | 6 | Pass — +4.8 KB. |
 | 7 | Pass — a probe file importing React and reading `window` fails both the type-check and the linter. |
@@ -208,7 +211,7 @@ Built 15–16 November 2026. What differed from the plan, and why.
 | 9 | Pass — README and `#/credits`, with a test. |
 | 10 | Pass — `e2e/audio/render.spec.ts`, `e2e/scheduling.spec.ts`. |
 
-**WebKit (criterion 4): cannot be met as written, and that is not new.** The criterion asks for the
+**WebKit (criterion 4): could not be met as first written, and that was not new.** The criterion asked for the
 Practice smoke test to pass in WebKit. In the WebKit build that Playwright ships for Linux, which is what
 CI runs, the page hangs and then crashes. Three probes in CI (run 9 of the workflow) established why:
 
@@ -225,6 +228,5 @@ What was done instead: WebKit runs every browser test that does not open a song 
 routing, and the credits page — which Stage 0's lazy routes make possible, because the Library no longer
 loads any audio code. Tests that open a song skip themselves there (`needsSound()` in `e2e/helpers.ts`).
 
-**For the owner:** criterion 4 should read "…the smoke test passes in Chromium; the Library and routing
-tests pass in WebKit", with Practice on Safari checked by hand on a phone at each milestone. Until that is
-agreed, treat the WebKit half of criterion 4 as not met.
+**Settled, 16 November 2026.** The owner agreed to reword criterion 4 as it now reads above, and checked
+Practice in Safari on their own phone after the work went live: it works as expected.
