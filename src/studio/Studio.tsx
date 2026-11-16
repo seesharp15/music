@@ -13,7 +13,10 @@ import { duplicateProject, removeProject, studioHref } from "./projects";
 import type { Session } from "./session";
 import { Sheet } from "./sheets/Sheet";
 import { SongSettings } from "./SongSettings";
+import { SelectionChip } from "./SelectionChip";
+import { StepBar } from "./StepBar";
 import { Toolbar } from "./Toolbar";
+import { Transport } from "./Transport";
 import { TrackTabs } from "./TrackTabs";
 import "../app/ui/ui.css";
 import "./studio.css";
@@ -22,7 +25,12 @@ import "./studio.css";
 export function Studio({ session, banner }: { session: Session; banner?: React.ReactNode }) {
   useEffect(() => {
     exposeStudio(session);
-    const offCommands = installCommands(session);
+    const offCommands = installCommands(session, {
+      typing: (e, down) => session.keys.typing(e, down),
+      record: () => session.keys.toggleRecord(),
+      rest: () => session.keys.rest(),
+      backspace: () => session.keys.backspace(),
+    });
     return () => {
       offCommands();
       exposeStudio(null);
@@ -37,6 +45,7 @@ export function Studio({ session, banner }: { session: Session; banner?: React.R
           <div className="studio-editor">
             <EditorCanvas />
             <ViewMenu />
+            <SelectionChip />
             <FirstRun />
           </div>
           <Sheet id="settings" title="Song settings">
@@ -46,9 +55,18 @@ export function Studio({ session, banner }: { session: Session; banner?: React.R
             <Inspector />
           </Sheet>
         </div>
-        {!session.readOnly && (
+        {session.readOnly ? (
           <div className="studio-controls">
-            <Toolbar />
+            <div className="toolbar">
+              <Transport />
+            </div>
+          </div>
+        ) : (
+          <div className="studio-controls">
+            <StepBar />
+            <Toolbar>
+              <Transport />
+            </Toolbar>
             <TrackTabs />
           </div>
         )}

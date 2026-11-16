@@ -27,6 +27,8 @@ export interface Playback {
   noteOff(pitch: number, trackId: string): void;
   /** Sound a note briefly: one just written, selected, or moved to a new pitch. */
   audition(pitches: readonly number[], trackId: string, velocity?: number): void;
+  /** Let playback run this many bars past the end of the song: room to record into. 0 puts it back. */
+  extend(bars: number): void;
   /** Make ready to be played by hand: called from the first touch, which the browser needs. */
   wake(): void;
   dispose(): void;
@@ -42,6 +44,15 @@ export function createPlayback(
   const engine = opts.engine ?? sharedEngine();
   let project = store.getState().project;
   let time = makeTimeMap(project.tempo, project.meter);
+  /** Bars of silence after the song's end that playback may run into (while recording). */
+  let tailBars = 0;
+  const compiled = () => {
+    const song = compileProject(project);
+    if (!tailBars) return song;
+    const end = project.lengthTicks;
+    const tail = time.secondsAt(end + tailBars * time.ticksPerBarAt(Math.max(0, end - 1))) - time.secondsAt(end);
+    return { ...song, duration: (song.duration ?? 0) + tail };
+  };
   const player = new Player(compileProject(project), { sound: "clear" }, { engine });
 
   const trackOf = (id: string): NoteTrack | undefined =>
@@ -69,7 +80,7 @@ export function createPlayback(
     const at = timing ? time.tickAt(player.currentTime()) : 0;
     project = next;
     if (timing) time = makeTimeMap(project.tempo, project.meter);
-    player.setSong(compileProject(project), { keepPosition: true });
+    player.setSong(compiled(), { keepPosition: true });
     if (timing && !player.state.playing) player.seek(time.secondsAt(at));
     applyLoop();
   };
@@ -154,6 +165,13 @@ export function createPlayback(
       timers.add(timer);
     },
     wake,
+    extend(bars) {
+      if (queued) recompile();
+      if (bars === tailBars) return;
+      tailBars = bars;
+      player.setSong(compiled(), { keepPosition: true });
+      applyLoop();
+    },
 
     dispose() {
       offStore();

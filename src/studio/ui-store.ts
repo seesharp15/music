@@ -62,6 +62,8 @@ export interface UiState {
   started: boolean;
   /** What the live region last said. */
   announcement: string;
+  /** MIDI keyboards: whether they are being listened to, which are connected, and why not if not. */
+  midi: { on: boolean; devices: string[]; error: string | null };
 }
 
 /** The part of the state remembered for each project (contracts §10, `studio:<projectId>`). */
@@ -112,6 +114,7 @@ export const initialUi = (activeTrack: string): UiState => ({
   recording: false,
   started: false,
   announcement: "",
+  midi: { on: false, devices: [], error: null },
 });
 
 export type UiStore = StoreApi<UiState>;

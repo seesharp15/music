@@ -5,16 +5,13 @@
 import { createProjectStore, type ProjectStoreHandle } from "../project/store";
 import type { Project } from "../project/types";
 import { kvGet, kvSet, projectPersistence } from "../storage";
+import { announce, edit, selected } from "./actions";
+import { describeNote } from "./describe";
 import type { Editor } from "./editor";
+import { createInput, type NoteInput } from "./input";
 import { createPlayback, type Playback } from "./playback";
 import { noteClosing, studioKey } from "./projects";
 import { createUiStore, sanitizeSavedUi, savedUiOf, type SavedUi, type UiStore } from "./ui-store";
-
-export type KeySource = "screen" | "typing" | "midi";
-export interface KeySink {
-  down(pitch: number, velocity: number, source: KeySource): void;
-  up(pitch: number, source: KeySource): void;
-}
 
 export interface Session {
   projectId: string;
@@ -25,7 +22,7 @@ export interface Session {
   /** The canvas's controller, while the canvas is on screen. */
   editor: Editor | null;
   /** Where key presses go, whatever they came from: the screen, the computer keyboard, MIDI. */
-  keys: KeySink;
+  keys: NoteInput;
   /** Nothing can be changed: the project on screen is a restore point being looked at. */
   readOnly: boolean;
   /** Save what is unsaved, then stop saving and listening. */
@@ -108,29 +105,39 @@ export function openSession(project: Project, savedUi: unknown, opts: { readOnly
 
   const playback = createPlayback({ store, ui });
 
-  // Until note input is wired in, a key only makes its sound.
-  const keys: KeySink = {
-    down: (pitch, velocity) => playback.noteOn(pitch, velocity, ui.getState().activeTrack),
-    up: (pitch) => playback.noteOff(pitch, ui.getState().activeTrack),
-  };
-
-  return {
+  const session = {
     projectId: project.id,
     store,
     ui,
     playback,
     editor: null,
-    keys,
     readOnly,
+  } as Session;
+  session.keys = createInput({
+    store,
+    ui,
+    playback,
+    readOnly,
+    edit: (ops, label) => edit(session, ops, label),
+    say: (text) => announce(session, text),
+    describeNote: (id) => {
+      const h = selected(session, [id])[0];
+      return h ? describeNote(store.getState().project, h.note) : "";
+    },
+  });
+
+  return Object.assign(session, {
     close() {
       unsubscribe();
       window.removeEventListener("pagehide", leaving);
       window.removeEventListener("beforeunload", leaving);
       document.removeEventListener("visibilitychange", onVisibility);
+      session.keys.stopRecording();
+      session.keys.dispose();
       playback.dispose();
       const done = Promise.all([write(), store.flush()]).then(() => store.dispose());
       noteClosing(done);
       return done;
     },
-  };
+  });
 }

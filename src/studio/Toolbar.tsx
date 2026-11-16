@@ -31,13 +31,10 @@ const TOOLS: { id: Tool; label: string; hint: string; icon: React.ReactNode }[] 
   },
 ];
 
-/** The tools, and the switches that go with them. The transport joins this row in S3.7. */
+/** The tools; the transport sits beside them in the same row. */
 export function Toolbar({ children }: { children?: React.ReactNode }) {
   const { ui } = useSession();
   const tool = useUi((s) => s.tool);
-  const adding = useUi((s) => s.addToSelection);
-  const count = useUi((s) => s.selection.length);
-  const inspecting = useUi((s) => s.sheet === "inspector");
   return (
     <div className="toolbar">
       <div className="tool-group" role="group" aria-label="Tool">
@@ -56,42 +53,6 @@ export function Toolbar({ children }: { children?: React.ReactNode }) {
           </button>
         ))}
       </div>
-      <button
-        className={`tool-btn ${adding ? "is-on" : ""}`}
-        aria-pressed={adding}
-        aria-label="Add to selection"
-        title="Add to selection: each tap adds a note to those selected"
-        onClick={() => ui.setState({ addToSelection: !adding })}
-      >
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
-          <rect
-            x="3"
-            y="3"
-            width="12"
-            height="12"
-            rx="2"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeDasharray="3 2.5"
-          />
-          <path d="M17 13v8m-4-4h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        </svg>
-      </button>
-      <button
-        className={`tool-btn has-count ${inspecting ? "is-on" : ""}`}
-        aria-pressed={inspecting}
-        aria-label={count ? `Selection: ${count} ${count === 1 ? "note" : "notes"}` : "Selection: nothing selected"}
-        title="The selected notes: pitch, timing, velocity, hand"
-        onClick={() => ui.setState({ sheet: inspecting ? null : "inspector" })}
-      >
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
-          <path d="M4 7h10M4 12h16M4 17h7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          <circle cx="17" cy="7" r="2.2" fill="currentColor" />
-          <circle cx="14" cy="17" r="2.2" fill="currentColor" />
-        </svg>
-        {count > 0 && <span className="tool-count">{count}</span>}
-      </button>
       {children}
     </div>
   );

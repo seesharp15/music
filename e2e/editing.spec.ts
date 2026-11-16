@@ -407,12 +407,33 @@ test.describe("by touch, on a phone", () => {
     expect((await ui(page)).selection.length).toBeGreaterThanOrEqual(3);
   });
 
-  test("the tools and the selection button are big enough for a finger", async ({ page }) => {
+  test("what is selected floats over the canvas: it opens the inspector, collects more notes, and lets go", async ({
+    page,
+  }) => {
     await studioWith(page, TUNE);
-    for (const name of ["Select", "Draw", "Erase", "Add to selection", "Selection: nothing selected"]) {
-      const box = (await page.getByRole("button", { name, exact: true }).boundingBox())!;
-      expect(Math.min(box.width, box.height), name).toBeGreaterThanOrEqual(44);
+    await settled(page);
+    const notes = await notesOf(page);
+    const chip = page.getByRole("group", { name: "Selection", exact: true });
+    await expect(chip).toHaveCount(0);
+    const c = await mid(page, 60, 0, 480);
+    await page.touchscreen.tap(c.x, c.y);
+    await expect(chip.getByRole("button", { name: "Selection: 1 note" })).toBeVisible();
+
+    // "Add to selection" on: each tap adds a note, as Shift does with a mouse.
+    await chip.getByRole("button", { name: "Add to selection" }).tap();
+    const d = await mid(page, 62, 480, 480);
+    await page.touchscreen.tap(d.x, d.y);
+    expect((await ui(page)).selection.sort()).toEqual([notes[0].id, notes[1].id].sort());
+    await chip.getByRole("button", { name: "Selection: 2 notes" }).tap();
+    await expect(page.getByRole("dialog", { name: "Selection" })).toBeVisible();
+    await page.getByRole("button", { name: "Close selection" }).tap();
+
+    for (const name of ["Selection: 2 notes", "Add to selection", "Clear the selection"]) {
+      const box = (await chip.getByRole("button", { name }).boundingBox())!;
+      expect(box.height, name).toBeGreaterThanOrEqual(44);
     }
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+    await chip.getByRole("button", { name: "Clear the selection" }).tap();
+    expect(await ui(page)).toMatchObject({ selection: [], addToSelection: false });
+    await expect(chip).toHaveCount(0);
   });
 });

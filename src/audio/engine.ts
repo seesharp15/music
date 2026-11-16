@@ -587,13 +587,16 @@ export class Engine implements AudioEngine, Sink {
           ? bank.attackSampled(this.pianoBuffers!, pitch, velocity, at)
           : bank.attack(sound, pitch, velocity, at);
       if (release) {
-        this.held.set(key, release);
+        this.held.set(key, sounded(release, at));
         return;
       }
     }
     const instrument = bus.instrument(ch, sound);
     instrument.triggerAttack(note, at, velocity);
-    this.held.set(key, (t) => instrument.triggerRelease(note, t));
+    this.held.set(
+      key,
+      sounded((t) => instrument.triggerRelease(note, t), at),
+    );
   }
 
   noteOff(pitch: number, ch: Channel, when?: number) {
@@ -755,6 +758,17 @@ export class Engine implements AudioEngine, Sink {
 }
 
 let shared: Engine | null = null;
+/** The least time a key played by hand sounds for, however briefly it was touched. */
+const MIN_LIVE_NOTE = 0.06;
+
+/**
+ * A release that never comes sooner than `MIN_LIVE_NOTE` after the attack. A key tapped for a few
+ * milliseconds — a mouse click, a brushed finger — is otherwise let go at the very moment it is
+ * struck, as the audio clock reads from the page, and makes no sound at all.
+ */
+const sounded = (release: (when: number) => void, attackedAt: number) => (when: number) =>
+  release(Math.max(when, attackedAt + MIN_LIVE_NOTE));
+
 /** The page's one engine, made the first time it is wanted. */
 export function sharedEngine(): Engine {
   return (shared ??= new Engine());

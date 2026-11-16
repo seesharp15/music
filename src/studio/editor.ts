@@ -8,7 +8,7 @@ import { gridTicks, quantize } from "../music/quantize";
 import type { NoteTrack, Project } from "../project/types";
 import { addNote, eraseNotes, grabbable, moveNotes, resizeNotes, select, setCursor } from "./actions";
 import { initialState, LONG_PRESS_MS, step, type Input, type Intent } from "./interaction";
-import { drawLayers, trackColor, type DragPreview, type DrawState } from "./layers";
+import { drawLayers, type DragPreview, type DrawState } from "./layers";
 import type { Session } from "./session";
 import type { UiState } from "./ui-store";
 import {
@@ -248,17 +248,13 @@ export function createEditor(canvas: HTMLCanvasElement, session: Session): Edito
   let machine = initialState();
   let pressTimer = 0;
   let wheelEnd = 0;
-  const heldKeys = new Map<number, { pitch: number; track: string }>();
+  /** Which key each pointer on the keyboard holds down. */
+  const heldKeys = new Map<number, number>();
+  const offHeld = session.keys.onHeld((lit) => api.setHeld(lit));
 
   const local = (e: PointerEvent | WheelEvent) => {
     const r = canvas.getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
-  };
-  const showHeld = () => {
-    const p = store.getState().project;
-    const lit = new Map<number, NoteColor>();
-    for (const k of heldKeys.values()) lit.set(k.pitch, trackColor(p, k.track));
-    api.setHeld(lit);
   };
 
   const carryOut = (intent: Intent) => {
@@ -289,18 +285,14 @@ export function createEditor(canvas: HTMLCanvasElement, session: Session): Edito
         return eraseNotes(session, intent.ids);
       case "audition":
         return playback.audition([intent.pitch], ui.getState().activeTrack);
-      case "keyDown": {
-        const track = ui.getState().activeTrack;
-        heldKeys.set(intent.id, { pitch: intent.pitch, track });
-        session.keys.down(intent.pitch, intent.velocity, "screen");
-        return showHeld();
-      }
+      case "keyDown":
+        heldKeys.set(intent.id, intent.pitch);
+        return session.keys.down(intent.pitch, intent.velocity, "screen");
       case "keyUp": {
-        const k = heldKeys.get(intent.id);
-        if (!k) return;
+        const pitch = heldKeys.get(intent.id);
+        if (pitch === undefined) return;
         heldKeys.delete(intent.id);
-        session.keys.up(k.pitch, "screen");
-        return showHeld();
+        return session.keys.up(pitch, "screen");
       }
     }
   };
@@ -372,7 +364,8 @@ export function createEditor(canvas: HTMLCanvasElement, session: Session): Edito
     dispose();
     clearTimeout(wheelEnd);
     clearTimeout(pressTimer);
-    for (const k of heldKeys.values()) session.keys.up(k.pitch, "screen");
+    offHeld();
+    for (const pitch of heldKeys.values()) session.keys.up(pitch, "screen");
     canvas.removeEventListener("pointerdown", onDown);
     canvas.removeEventListener("pointermove", onMove);
     canvas.removeEventListener("pointerup", onUp);
