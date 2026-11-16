@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { Page } from "@playwright/test";
+import { test, type Page } from "@playwright/test";
 
 export interface FixtureSong {
   id: string;
@@ -35,4 +35,12 @@ export async function mockBank(page: Page, songs: FixtureSong[]) {
 /** Wait for Practice to have built its player for the song now on screen. */
 export async function playerReady(page: Page) {
   await page.waitForFunction(() => !!window.__app?.player);
+}
+
+/**
+ * Call at the top of a `describe` whose tests open a song. Playwright's WebKit build for Linux hangs
+ * as soon as Tone.js loads, so those tests cannot run there; everything else can.
+ */
+export function needsSound() {
+  test.skip(({ browserName }) => browserName === "webkit", "Playwright's Linux WebKit hangs when Tone.js loads");
 }

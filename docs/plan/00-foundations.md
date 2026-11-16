@@ -192,10 +192,10 @@ Built 15–16 November 2026. What differed from the plan, and why.
 
 | # | Result |
 | --- | --- |
-| 1 | `npm run check` passes locally. In CI: see the note on criterion 4. |
+| 1 | Pass, locally and in CI. |
 | 2 | CI runs on every push. Blocking merges is not set up: it needs branch protection (owner). |
 | 3 | Pass — `e2e/routes.spec.ts`. |
-| 4 | Chromium: pass. WebKit: **see below.** |
+| 4 | Chromium: pass. WebKit: **not met as written — see below.** The Library and routing tests run there instead. |
 | 5 | Pass — breaking `playRange` fails four unit tests; making the scheduler ignore speed fails the half-speed test. |
 | 6 | Pass — +4.8 KB. |
 | 7 | Pass — a probe file importing React and reading `window` fails both the type-check and the linter. |
@@ -203,8 +203,23 @@ Built 15–16 November 2026. What differed from the plan, and why.
 | 9 | Pass — README and `#/credits`, with a test. |
 | 10 | Pass — `e2e/audio/render.spec.ts`, `e2e/scheduling.spec.ts`. |
 
-**WebKit (criterion 4): not passing, cause not yet known.** In CI the WebKit smoke test sees a blank
-page with no uncaught errors and no failed requests; every Chromium test passes. WebKit cannot be run in
-the session this was built in, so a probe test (`e2e/probe.spec.ts`) now reports from CI whether pages
-without audio load there, what audio support that build has, and whether the page crashes. This note is
-updated once it has answered. Until then, criteria 1 and 4 are open for WebKit only.
+**WebKit (criterion 4): cannot be met as written, and that is not new.** The criterion asks for the
+Practice smoke test to pass in WebKit. In the WebKit build that Playwright ships for Linux, which is what
+CI runs, the page hangs and then crashes. Three probes in CI (run 9 of the workflow) established why:
+
+- the Library renders there, and a plain `AudioContext` works;
+- loading the module that contains Tone.js never returns — no error, the page simply stops;
+- **the app as it was before any of this work (commit `6e1b653`) crashes the same way** on load, on both
+  the iPhone and the desktop Safari profiles.
+
+So no screen that makes sound can be tested in that browser by anyone, and nothing in Stages 0 or 1
+caused it. It says nothing about Safari on a real iPhone, where the app is in daily use; it is a limit of
+that test build.
+
+What was done instead: WebKit runs every browser test that does not open a song — all of the Library,
+routing, and the credits page — which Stage 0's lazy routes make possible, because the Library no longer
+loads any audio code. Tests that open a song skip themselves there (`needsSound()` in `e2e/helpers.ts`).
+
+**For the owner:** criterion 4 should read "…the smoke test passes in Chromium; the Library and routing
+tests pass in WebKit", with Practice on Safari checked by hand on a phone at each milestone. Until that is
+agreed, treat the WebKit half of criterion 4 as not met.

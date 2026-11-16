@@ -3,7 +3,7 @@ import { open, playerReady } from "./helpers";
 
 /**
  * The one test that walks through Practice the way a person does. If this breaks, Practice is
- * broken. It runs in Chromium and, where WebKit is installed, on an iPhone-sized WebKit too.
+ * broken. Chromium only: the WebKit that Playwright ships for Linux cannot load Tone.js at all.
  */
 test("practise a song: play, loop a section, step, change speed, and pick up after a reload", async ({ page }) => {
   // If the page never gets going, say what it said instead: this test also runs on browsers that

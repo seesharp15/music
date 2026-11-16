@@ -321,7 +321,8 @@ than half the size of the old one.
 | 10 | Pass — unit test in `src/session.test.ts` and a browser test. |
 | 11 | Pass — `e2e/hands.spec.ts`. |
 | 12 | Pass by keyboard, mouse and emulated touch at 390 px; **not yet tried on a real phone.** |
-| 13, 14 | Pass on the four synthesized sounds. Grand piano: **open** — see "Not verified". |
+| 13 | Pass on the four synthesized sounds. Grand piano: **not met as written** — see "The grand piano and criterion 13". |
+| 14 | Pass on all five sounds. |
 | 15 | Pass on all five sounds (the grand piano in CI, where its samples can be downloaded). |
 | 16 | Pass — `e2e/sustain.spec.ts`. |
 | 17 | Pass — the Stage 0 scheduling tests are unchanged and green; one more checks that the pedal does not move any note. |
@@ -332,11 +333,22 @@ than half the size of the old one.
   each milestone on a phone; this is that moment (M1).
 - **By ear.** The sustain's numbers are right; whether a six-second ring *sounds* right on each of the
   five sounds is a listening judgement. `RING_T60` in `src/audio/voices.ts` is the one number to change.
-- **The grand piano against criterion 13.** Its samples cannot be downloaded in the session this was
-  built in, so it is tested in CI only. There, a short middle C under the pedal was 27 dB below its
-  level at release after 1.5 s, where the criterion allows 20. The likely reason is that a recorded
-  string simply dies away that fast, in which case the figure is wrong for a real piano and not the
-  code. That is being checked rather than assumed: the piano's test now compares the pedal with the
-  same note held down by the key, and prints what it measures. If the two agree, the criterion should
-  read "like a held key" for the sampled piano, which is the owner's call to accept.
-- **WebKit.** See Stage 0's build notes: its smoke test does not pass in CI yet.
+- **Safari.** Playwright's WebKit cannot load the app's audio code at all (Stage 0's build notes), so
+  the Library is tested there and Practice is not. Practice on Safari needs a phone.
+
+### The grand piano and criterion 13
+
+Criterion 13 says a short note under the pedal is "no more than 20 dB down after 1.5 s". The four
+synthesized sounds meet it (about 16 dB). The sampled grand piano does not: in CI, with the real samples,
+a short middle C was 27 dB down at that point.
+
+That is the recording, not the pedal. Measured against the same note with the **key held down** for the
+whole time, the pedalled note is within 3 dB at half a second and at a second and a half, within 6 dB at
+three seconds, and gone by eight; lifting the pedal silences it within 200 ms. A real piano string loses
+most of its level in the first second whether the damper is up or not, and the samples reproduce that.
+
+So the piano is tested against "rings like a held key" (`e2e/audio/sustain.spec.ts`), which is what a
+sustain pedal does, and the fixed figure is kept for the synthesized sounds, where there is no recording
+to defer to. **For the owner:** this changes what criterion 13 asks of one sound out of five. If you
+would rather the piano rang longer than it was recorded, that is possible but it would no longer sound
+like the instrument; say so and it becomes a setting.

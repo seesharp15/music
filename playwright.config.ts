@@ -1,7 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = 4173;
-// WebKit runs the smoke test only, and only where it is installed (CI, or PW_WEBKIT=1 locally).
+// WebKit runs where it is installed (CI, or PW_WEBKIT=1 locally), and only the screens that make no
+// sound: Playwright's WebKit build for Linux hangs the moment Tone.js is loaded. It did the same to
+// the app before it had tests (see docs/plan/00-foundations.md, Build notes). Tests that open a song
+// skip themselves there; e2e/helpers.ts has the switch.
 const withWebKit = !!process.env.CI || process.env.PW_WEBKIT === "1";
 
 export default defineConfig({
@@ -23,7 +26,9 @@ export default defineConfig({
         launchOptions: { args: ["--autoplay-policy=no-user-gesture-required"] },
       },
     },
-    ...(withWebKit ? [{ name: "webkit", use: { ...devices["iPhone 14"] }, testMatch: /(smoke|probe)\.spec\.ts/ }] : []),
+    ...(withWebKit
+      ? [{ name: "webkit", use: { ...devices["iPhone 14"] }, testMatch: /(library|routes)\.spec\.ts/ }]
+      : []),
   ],
   webServer: {
     // `npm run test:e2e` builds first; this only serves what was built.

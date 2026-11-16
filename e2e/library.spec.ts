@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { open, playerReady } from "./helpers";
+import { needsSound, open, playerReady } from "./helpers";
 
 const bank = (page: Page) => page.getByRole("region", { name: "Song bank" });
 const cards = (page: Page) => bank(page).getByRole("link");
@@ -69,55 +69,6 @@ test("difficulty and sort work, and sort is kept in the address", async ({ page 
   await expect(cards(page)).toContainText("Divenire");
 });
 
-test("what you played comes first under Continue, and picks up where you left it", async ({ page }) => {
-  await open(page, "#/");
-  await expect(page.getByRole("heading", { name: "Continue" })).toHaveCount(0);
-
-  await cards(page).filter({ hasText: "Rewrite the Stars" }).click();
-  await playerReady(page);
-  await page.evaluate(() => window.__app!.player!.seek(60));
-  await page.getByRole("link", { name: "← Library" }).click();
-
-  const row = page.getByRole("region", { name: "Continue" });
-  await expect(row.getByRole("link")).toHaveCount(1);
-  await expect(row.getByRole("link")).toContainText("Rewrite the Stars");
-  await expect(row.getByRole("link")).toContainText("Resume at 1:00 of 3:29");
-
-  // Even in a fresh tab, where nothing else remembers the position.
-  await page.evaluate(() => sessionStorage.clear());
-  await row.getByRole("link").click();
-  await playerReady(page);
-  expect(await page.evaluate(() => window.__app!.player!.currentTime())).toBeCloseTo(60, 1);
-
-  // The song played most recently is the first card.
-  await page.getByRole("link", { name: "← Library" }).click();
-  await cards(page).filter({ hasText: "Divenire" }).click();
-  await playerReady(page);
-  await page.evaluate(() => window.__app!.player!.seek(30));
-  await page.getByRole("link", { name: "← Library" }).click();
-  await expect(page.getByRole("region", { name: "Continue" }).getByRole("link")).toContainText([
-    "Divenire",
-    "Rewrite the Stars",
-  ]);
-});
-
-test("opening a song without listening does not put it under Continue", async ({ page }) => {
-  await open(page, "#/play/divenire");
-  await playerReady(page);
-  await page.getByRole("link", { name: "← Library" }).click();
-  await expect(page.getByRole("heading", { name: "Song bank" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Continue" })).toHaveCount(0);
-});
-
-test("cards work from the keyboard and are announced by title and artist", async ({ page }) => {
-  await open(page, "#/");
-  const card = page.getByRole("link", { name: /Divenire.*Ludovico Einaudi/ });
-  await expect(card).toBeVisible();
-  await card.focus();
-  await page.keyboard.press("Enter");
-  await expect(page.getByRole("heading", { level: 1, name: "Divenire" })).toBeVisible();
-});
-
 test("nothing scrolls sideways on a small phone", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 640 });
   await open(page, "#/");
@@ -155,4 +106,65 @@ test("cards arrive without shifting the page: placeholders hold their place", as
   const after = await cards(page).first().boundingBox();
   expect(Math.abs(after!.y - before!.y)).toBeLessThan(1);
   expect(Math.abs(after!.height - before!.height)).toBeLessThan(1);
+});
+
+test("each card is a link to its song, named by title and artist", async ({ page }) => {
+  await open(page, "#/");
+  const card = page.getByRole("link", { name: /Divenire.*Ludovico Einaudi/ });
+  await expect(card).toHaveAttribute("href", "#/play/divenire");
+  await card.focus();
+  await expect(card).toBeFocused();
+});
+
+test.describe("opening a song from the library", () => {
+  needsSound();
+
+  test("what you played comes first under Continue, and picks up where you left it", async ({ page }) => {
+    await open(page, "#/");
+    await expect(page.getByRole("heading", { name: "Continue" })).toHaveCount(0);
+
+    await cards(page).filter({ hasText: "Rewrite the Stars" }).click();
+    await playerReady(page);
+    await page.evaluate(() => window.__app!.player!.seek(60));
+    await page.getByRole("link", { name: "← Library" }).click();
+
+    const row = page.getByRole("region", { name: "Continue" });
+    await expect(row.getByRole("link")).toHaveCount(1);
+    await expect(row.getByRole("link")).toContainText("Rewrite the Stars");
+    await expect(row.getByRole("link")).toContainText("Resume at 1:00 of 3:29");
+
+    // Even in a fresh tab, where nothing else remembers the position.
+    await page.evaluate(() => sessionStorage.clear());
+    await row.getByRole("link").click();
+    await playerReady(page);
+    expect(await page.evaluate(() => window.__app!.player!.currentTime())).toBeCloseTo(60, 1);
+
+    // The song played most recently is the first card.
+    await page.getByRole("link", { name: "← Library" }).click();
+    await cards(page).filter({ hasText: "Divenire" }).click();
+    await playerReady(page);
+    await page.evaluate(() => window.__app!.player!.seek(30));
+    await page.getByRole("link", { name: "← Library" }).click();
+    await expect(page.getByRole("region", { name: "Continue" }).getByRole("link")).toContainText([
+      "Divenire",
+      "Rewrite the Stars",
+    ]);
+  });
+
+  test("opening a song without listening does not put it under Continue", async ({ page }) => {
+    await open(page, "#/play/divenire");
+    await playerReady(page);
+    await page.getByRole("link", { name: "← Library" }).click();
+    await expect(page.getByRole("heading", { name: "Song bank" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Continue" })).toHaveCount(0);
+  });
+
+  test("cards work from the keyboard and are announced by title and artist", async ({ page }) => {
+    await open(page, "#/");
+    const card = page.getByRole("link", { name: /Divenire.*Ludovico Einaudi/ });
+    await expect(card).toBeVisible();
+    await card.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("heading", { level: 1, name: "Divenire" })).toBeVisible();
+  });
 });

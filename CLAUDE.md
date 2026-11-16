@@ -40,8 +40,10 @@ npm run format       # apply Prettier
 
 - End-to-end tests open the app as `/?flags=test-hooks#/…` and reach it through `window.__app`
   (`src/app/testHooks.ts`).
-- `@playwright/test` is pinned to 1.63.0 to match the browser preinstalled in cloud sessions. WebKit
-  runs the smoke test in CI only.
+- `@playwright/test` is pinned to 1.63.0 to match the browser preinstalled in cloud sessions.
+- WebKit runs in CI only, and only tests that make no sound: Playwright's Linux WebKit hangs when
+  Tone.js loads (it always did). Put `needsSound()` at the top of any `describe` that opens a song.
+  Practice on Safari has to be checked on a real phone.
 - The sampled grand piano loads from `tonejs.github.io`. Where that host is blocked the app falls back
   to the Clear sound, and tests of the piano sound skip themselves.
 - Prettier formats TypeScript only. The stylesheet's one-rule-per-line layout is deliberate.
