@@ -458,6 +458,8 @@ export interface AudioEngine {
   setHandMix(hand: Hand, mix: HandMix): void;
   setTrackMix(trackId: string, mix: HandMix): void;
   setDrumMix(mix: HandMix): void;
+  /** Forget every track but these: the player calls it when its song changes. */
+  keepTracks(ids: readonly string[]): void;
   setStereoSplit(on: boolean): void;
   setSustain(down: boolean): void;
   setSound(sound: SoundId): void;
@@ -468,9 +470,34 @@ export interface AudioEngine {
 export interface Channel { hand: Hand; track?: string; sound?: SoundId }
 ```
 
+The engine (`Engine` in `src/audio/engine.ts`; `sharedEngine()` is the page's one) also offers
+`prepare(ch)` — build a channel's instrument before its first note is played by hand — `tap(node)` — a
+copy of everything it puts out, for a meter or a recorder — and `onPiano(fn)`.
+
+**Two paths.** What the player schedules goes instrument → track strip → hand → master → limiter. What
+is played by hand (`noteOn`, `noteOff`) goes through a second set of hands and strips, with the same
+mix, that ends in a soft clipper instead: a browser's compressor delays everything by 6 ms, and the
+clipper delays nothing. A note played by hand is therefore asked for at the audio clock's present
+moment and heard in the next render quantum. The live path is built the first time it is used.
+
 `PlayerState` changes (Stage 1): `levels: Record<Hand, HandLevel>` becomes `mix: Record<Hand, HandMix>`,
-and `sustain: boolean` is added. Stage 2 adds `trackMix`, `drumMix`, `setSong(song, { keepPosition })` for
-hot-swapping the compiled song while editing, and scheduling of `drums` and `tracks`.
+and `sustain: boolean` is added. Stage 2 adds, to the state, `trackMix: Record<string, HandMix>`,
+`drumMix: HandMix`, `solo: string | null` and `countIn: boolean`; and to the player:
+
+```ts
+/** Swap the song. With keepPosition a running transport carries on: no gap, no note played twice. */
+setSong(song: Song, opts?: { keepPosition?: boolean }): void;
+setTrackMix(trackId: string, patch: Partial<HandMix>): void;
+setDrumMix(patch: Partial<HandMix>): void;
+/** Hear one track alone (the others and the drums fall silent), or with null everything again. */
+solo(trackId: string | null): void;
+/** Clicks for that many bars first, at the tempo where playback starts and the current speed. */
+play(opts?: { countInBars?: number }): Promise<void>;
+```
+
+A song's `tracks[].volume` and `drums.volume` are the mix the player starts with. A note with a `track`
+is played on that track's strip and sound; a note without one goes straight to its hand, as every bank
+song's do. `new Player(song, prefs, { engine, clock })` lets a test supply its own engine and clock.
 
 `inputLatencyMs()` in `src/audio/latency.ts` returns the calibrated input latency stored under
 `piano-tutor:latency`, or 0 when this device has not been calibrated. Every recording path — live notes,
@@ -488,6 +515,8 @@ export interface Sink {
   releaseAll(): void;
   /** Silence notes ringing on under the sustain pedal, without lifting it. A loop coming round uses it. */
   damp?(when?: number): void;
+  /** One drum hit. Optional: a sink with no drums drops them. */
+  drum?(pad: DrumPadId, velocity: number, when: number, kit?: string): void;
 }
 ```
 

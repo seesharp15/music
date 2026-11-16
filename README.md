@@ -60,7 +60,8 @@ humming, and import from audio). Start with its README.
 src/
   app/                   # routes, feature flags, error boundary, test hooks
   audio/player.ts        # scheduler: play/pause/seek, speed, looping
-  audio/voices.ts        # the instruments and hand channels
+  audio/engine.ts        # the instruments, mixer and limiter: everything that makes a sound
+  audio/drums.ts         # a synthesized drum kit
   audio/testing.ts       # test harness: record what is scheduled, render to samples
   components/Stage.tsx   # falling notes + keyboard (canvas)
   components/Trimmer.tsx # loop trimmer / timeline

@@ -4,7 +4,9 @@
  * browsers where Tone.js cannot (see e2e/helpers.ts).
  */
 export { catalog, createCatalog } from "../library/catalog";
+export { compileProject } from "../project/compile";
 export { readFile, writeProjectFile, projectFileName } from "../project/file";
+export { projectFromSong } from "../project/fromSong";
 export { newProject } from "../project/new";
 export { applyOps } from "../project/ops";
 export { parseProject } from "../project/schema";

@@ -354,3 +354,65 @@ the app leaves the screen.
 | --- | --- |
 | 8 | Pass — `src/project/compile.test.ts`: all 1,400 notes of Rewrite the Stars come back within 2 ms of their start and length, with their velocity, hand and section names; fewer than 5% needed an offset of more than ten ticks. Divenire (free time, 2,996 notes) also comes back within 2 ms on its guessed grid, flagged `gridGuessed`. |
 
+### S2.5 — the audio engine
+
+`src/audio/voices.ts` became `src/audio/engine.ts`. The scheduler in `player.ts` is unchanged line for
+line; what changed around it is where its calls go.
+
+- **The engine is one for the page** (`sharedEngine()`), as planned. A player no longer builds and
+  throws away the instruments with each song: it sets the engine the way its listener left things, and
+  on the way out releases what is sounding and drops its tracks. Moving from one song to another keeps
+  the instruments and, where they were downloaded, the piano samples.
+- **Notes played by hand do not go through the limiter. This was not in the plan and is the main thing
+  to know about this package.** The first measurement of criterion 12 came out at exactly 6.0 ms from
+  call to sound, every time, where a bare Web Audio oscillator measured 0.02 ms. The 6 ms is the
+  look-ahead inside the browser's `DynamicsCompressorNode`, which Stage 1 made the master limiter: it
+  delays everything by 265 samples. For a song being played back that is nothing. For a key under a
+  finger it is two render quanta the criterion does not allow. So the engine has a second, parallel
+  path for `noteOn` — the same hands, track strips and mix — that ends in a wave-shaping soft clipper:
+  a straight line below the limiter's ceiling (−3 dBFS), a tanh bend above it, no memory and no delay.
+  It is built the first time a note is played by hand, so **Practice's signal path is exactly what
+  Stage 1 left**, node for node. Measured: a note played by hand at ordinary strength is as loud as the
+  same note scheduled (within 0.05 dB); twenty keys struck at once at full strength peak under full
+  scale; the scheduled note is 6 ms behind the hand-played one.
+- **`engine.prepare(channel)`** builds a channel's instrument and a few of its voices ahead of the first
+  note. Without it the first note of a sound still plays, 10–18 ms late on the build machine while the
+  synthesizer is constructed. Whatever shows keys should call it as they appear (S3.4); Practice, which
+  only schedules, does not.
+- **`setSong(song, { keepPosition })` releases nothing.** What was already asked for (up to 150 ms of
+  listening ahead) still sounds; from the next tick the new song's notes are the ones scheduled. A
+  track that is in both songs keeps its strip and its mute; tracks that are gone are disposed of.
+- **Count-in** clicks are asked for as they come due, like every other click, and notes are not asked
+  for until the usual look-ahead before the start — so pausing during the count leaves nothing waiting
+  to sound. The playhead waits where the music will begin. A song with no tempo is not counted in.
+- **Solo is the player's, not the engine's**: the player tells the engine each track's effective mix,
+  with every track but the soloed one, and the drums, muted.
+- **The drum kit** is sixteen synthesized voices, one per pad, built on first use, with a trim so that
+  all sixteen at once at full strength stay under full scale (−2.8 dBFS). `kit` names are accepted and
+  ignored until Stage 4 installs sampled kits.
+- **`renderPlayed`** (in `src/audio/testing.ts`) runs the real player offline: its scheduler ticks on a
+  clock the harness steps 25 ms at a time against an engine that renders to samples. Stage 0's note
+  that "the real-time loop cannot run offline" no longer holds, and criterion 10 is tested on samples.
+  The player takes its clock and engine as optional arguments to make this possible.
+- **Not built:** more sounds (a bass, a pad, strings), which the plan allows but does not require; the
+  `SoundId` list is unchanged. And the few-millisecond lateness of whatever falls exactly on the
+  position playback starts from (Stage 0's build notes) is still there: the scheduler was not touched.
+- **`newProject` gives its tracks the grand piano**, which starts the sample download the first time
+  such a track sounds, and plays Clear until it arrives — as the Practice sound menu does.
+
+**Bundle (criterion 9).** Practice downloads 135.7 KB of JavaScript, gzipped, in the same four files:
++5.5 KB over the 130.2 KB it was before Stage 2 (the drum synthesizers are 3 of that). The Library
+is unchanged at 54.4 KB and still loads no audio code.
+
+| # | Result |
+| --- | --- |
+| 9 | Pass — `e2e/scheduling.spec.ts` is unchanged and green, with every other Stage 0 and Stage 1 browser test; +5.5 KB. |
+| 10 | Pass — `e2e/engine.spec.ts`. Swapped before the music reaches the edit: the notes asked for are exactly the edited song's, each once, and the render is the same as a clean render of the edited song sample for sample (so it differs nowhere). Swapped after: nothing differs before the edit point. Live in the app, the gaps between notes across the swap are right to 5 ms and the playhead does not move. |
+| 11 | Pass — two tracks on different sounds, free drum hits and a pattern, 120 then 90 BPM: all 10 notes and 11 hits asked for within 5 ms of their compiled times. Soloing a track leaves the others and the drums below −80 dB and the soloed track at its own level. |
+| 12 | Pass, with the measurement described here. Ten pointer taps, each from silence: counted on the audio thread, the note begins in the first render quantum after the audio thread hears of the call (0.00 ms); by the page's own clock, 0.02 ms, the same as a bare oscillator. On a busy machine one or two taps in ten are 3–4 quanta later (8.7–11.6 ms) — and so are the bare oscillator's, because the sound card takes several quanta at a time and the page can be kept waiting; the test asserts the median and at least seven taps in ten, and that none is within sight of a look-ahead. |
+
+**For the owner to hear, not a test to pass:** the live path's clipper bends peaks where the limiter
+would have turned them down. It only acts above −3 dBFS — a fistful of keys at full strength — and
+nothing plays by hand until Stage 3. It is the one audible design decision in this stage that was not
+in the plan.
+
