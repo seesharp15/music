@@ -34,6 +34,8 @@ export interface PlayerState {
   /** Status of the sampled grand piano, which needs a download. */
   piano: PianoStatus;
   stereo: boolean;
+  /** The sustain pedal is held down: notes ring on after their keys are released. */
+  sustain: boolean;
   metronome: boolean;
 }
 
@@ -60,7 +62,7 @@ export class Player {
    */
   sink: Sink;
 
-  constructor(song: Song, prefs: Partial<Pick<PlayerState, "sound" | "stereo">> = {}) {
+  constructor(song: Song, prefs: Partial<Pick<PlayerState, "sound" | "stereo" | "sustain">> = {}) {
     this.song = song;
     this._state = {
       playing: false,
@@ -72,12 +74,14 @@ export class Player {
       sound: prefs.sound ?? "clear",
       piano: "idle",
       stereo: prefs.stereo ?? false,
+      sustain: prefs.sustain ?? false,
       metronome: false,
     };
     this.voices = new Voices({
       sound: this._state.sound,
       stereo: this._state.stereo,
       mix: this._state.mix,
+      sustain: this._state.sustain,
       onPiano: (piano) => this.update({ piano }),
     });
     this.sink = this.voices;
@@ -248,6 +252,12 @@ export class Player {
     this.voices.setStereo(stereo);
   }
 
+  /** Press or lift the sustain pedal. Lifting it silences what was ringing. */
+  setSustain(sustain: boolean) {
+    this.update({ sustain });
+    this.voices.setSustain(sustain);
+  }
+
   setMetronome(metronome: boolean) {
     this.update({ metronome });
   }
@@ -308,6 +318,9 @@ export class Player {
       this.anchorSong = range.start;
       this.scheduledUpTo = range.start;
       t = this.currentTime();
+      // Without the pedal, notes are cut to end with the loop. With it they ring past the end, so the
+      // dampers come down for a moment or the end of the loop would sound over its start.
+      this.sink.damp?.();
       this.wrapListeners.forEach((fn) => fn());
       if (this._state.rate !== rate) return; // a listener changed the speed; next tick reschedules
     }

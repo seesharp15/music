@@ -20,7 +20,7 @@ export const audioNow = () => Tone.getContext().currentTime;
 // ---- what was scheduled ------------------------------------------------------
 
 export interface SinkCall {
-  kind: "note" | "click" | "release";
+  kind: "note" | "click" | "release" | "damp";
   /** Audio-context time the sound was asked for. */
   when: number;
   /** Audio-context time the call was made. */
@@ -56,6 +56,10 @@ export function recordSink(player: Player, opts: { silent?: boolean } = {}): Rec
       calls.push({ kind: "release", when: now(), at: now() });
       inner.releaseAll();
     },
+    damp(when?: number) {
+      calls.push({ kind: "damp", when: when ?? now(), at: now() });
+      inner.damp?.(when);
+    },
   };
   player.sink = recorder;
   return { calls, stop: () => void (player.sink = inner) };
@@ -69,6 +73,10 @@ export interface RenderOptions {
   seconds?: number;
   stereo?: boolean;
   mix?: Mix;
+  /** Hold the sustain pedal down throughout. */
+  sustain?: boolean;
+  /** Times at which whatever is ringing is silenced: the pedal lifting, or a loop coming round. */
+  dampAt?: number[];
   /** Volume and mute changes part-way through, at times in seconds. */
   changes?: { time: number; hand: Hand; mix: HandMix }[];
   sampleRate?: number;
@@ -94,12 +102,17 @@ export async function renderOffline(song: Song, opts: RenderOptions = {}): Promi
         sound: opts.sound ?? "clear",
         stereo: opts.stereo ?? false,
         mix: opts.mix,
+        sustain: opts.sustain,
       });
       if ((await voices.ready()) === "failed") throw new Error("The grand piano samples could not be loaded");
       for (const c of opts.changes ?? []) voices.setHandMix(c.hand, c.mix, c.time);
+      // Notes and damps go in time order, as they would live: a damp silences what came before it.
+      const damps = [...(opts.dampAt ?? [])].sort((a, b) => a - b);
       for (const n of song.notes) {
+        while (damps.length && damps[0] <= n.time) voices.damp(damps.shift());
         voices.play(n.pitch, Math.max(n.duration, 0.05), n.velocity ?? 0.7, { hand: n.hand }, n.time);
       }
+      damps.forEach((t) => voices.damp(t));
     },
     seconds,
     2,

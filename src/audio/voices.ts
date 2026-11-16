@@ -52,6 +52,29 @@ const SAMPLE_NOTES = [
   "C8",
 ];
 
+// ---- sustain ---------------------------------------------------------------------------------
+
+/**
+ * With the pedal down a released note rings on and dies away like a string: 60 dB in this many
+ * seconds. Real time, whatever the playback speed.
+ */
+const RING_T60 = 6;
+/** How long a ringing voice is held before it may be reused: the ring, plus a little. */
+const RING_BUSY = RING_T60 + 0.5;
+/**
+ * The release time that gives Tone that decay. Tone's "exponential" release approaches zero with a
+ * time constant of ln(release + 1) / ln(200), far quicker than the name suggests: a 4 s release is
+ * 40 dB down after 1.5 s. Working backwards from the decay wanted gives a nominal release of about
+ * 100 s, of which only the first few seconds are audible.
+ */
+const RING_RELEASE = Math.pow(200, RING_T60 / Math.log(1000)) - 1;
+/** How long a sampled note may ring under the pedal before it is faded out completely, seconds. */
+const SAMPLE_RING = 7;
+/** Most voices one hand may have ringing. Past this the oldest ring is cut short to make room. */
+const MAX_RING_VOICES = 48;
+/** Seconds to silence when the pedal lifts. */
+const DAMP = 0.12;
+
 export type PianoStatus = "idle" | "loading" | "ready" | "failed";
 
 interface Instrument {
@@ -60,10 +83,122 @@ interface Instrument {
   dispose(): unknown;
 }
 
+type SynthSound = Exclude<SoundId, "piano">;
+
+/** The synthesized sounds: which kind of voice, and its settings. */
+const SYNTHS = {
+  clear: {
+    fm: false,
+    options: {
+      oscillator: { type: "triangle" },
+      envelope: { attack: 0.005, decay: 0.3, sustain: 0.25, release: 0.6 },
+      volume: -12,
+    },
+  },
+  soft: {
+    fm: false,
+    options: {
+      oscillator: { type: "sine" },
+      envelope: { attack: 0.01, decay: 0.6, sustain: 0.3, release: 0.9 },
+      volume: -9,
+    },
+  },
+  bright: {
+    fm: false,
+    options: {
+      oscillator: { type: "square6" },
+      envelope: { attack: 0.003, decay: 0.25, sustain: 0.2, release: 0.4 },
+      volume: -19,
+    },
+  },
+  epiano: {
+    fm: true,
+    options: {
+      harmonicity: 3,
+      modulationIndex: 9,
+      oscillator: { type: "sine" },
+      modulation: { type: "sine" },
+      envelope: { attack: 0.002, decay: 1.4, sustain: 0.15, release: 1 },
+      modulationEnvelope: { attack: 0.002, decay: 0.25, sustain: 0, release: 0.2 },
+      volume: -14,
+    },
+  },
+} as const;
+
+type AnySynthOptions = ConstructorParameters<typeof Tone.Synth>[0] & ConstructorParameters<typeof Tone.FMSynth>[0];
+
+/** One voice of a synthesized sound, with its release stretched into a ring. */
+function ringingVoice(sound: SynthSound): Tone.Synth | Tone.FMSynth {
+  const { fm, options } = SYNTHS[sound];
+  const stretched = { ...options, envelope: { ...options.envelope, release: RING_RELEASE } } as AnySynthOptions;
+  return fm ? new Tone.FMSynth(stretched) : new Tone.Synth(stretched);
+}
+
+/**
+ * The notes one hand has ringing under the pedal. Tone's own PolySynth drops notes once it runs out
+ * of voices and cannot cut a ring short, so the pedal keeps its own small pool: a key struck again
+ * takes over its own ring, and when every voice is busy the one nearest silence is reused.
+ */
+class RingBank {
+  /** Everything in the bank passes through here, so lifting the pedal can silence it at once. */
+  readonly bus: Tone.Gain;
+  private pool: { synth: Tone.Synth | Tone.FMSynth; sound: SynthSound; pitch: number; busyUntil: number }[] = [];
+  private sampler: Tone.Sampler | null = null;
+
+  constructor(destination: Tone.ToneAudioNode) {
+    this.bus = new Tone.Gain(1).connect(destination);
+  }
+
+  play(sound: SynthSound, pitch: number, duration: number, velocity: number, when: number) {
+    const mine = this.pool.filter((v) => v.sound === sound);
+    let voice =
+      mine.find((v) => v.pitch === pitch && v.busyUntil > when) ?? // the same key again
+      mine.find((v) => v.busyUntil <= when); // one that has gone quiet
+    if (!voice && this.pool.length < MAX_RING_VOICES) {
+      voice = { synth: ringingVoice(sound).connect(this.bus), sound, pitch, busyUntil: 0 };
+      this.pool.push(voice);
+    }
+    // Every voice is ringing: take the one that has been ringing longest, which is the quietest.
+    voice ??= mine.length ? mine.reduce((a, b) => (a.busyUntil <= b.busyUntil ? a : b)) : undefined;
+    if (!voice) return false;
+    voice.pitch = pitch;
+    voice.busyUntil = when + duration + RING_BUSY;
+    voice.synth.triggerAttackRelease(Tone.Frequency(pitch, "midi").toNote(), duration, when, velocity);
+    return true;
+  }
+
+  /**
+   * The sampled piano needs no pool: each note is its own player, and a recorded string dies away by
+   * itself. So the pedal only has to stay out of the way: a slow, straight fade that ends the note
+   * for certain after `SAMPLE_RING` seconds.
+   */
+  playSampled(buffers: Tone.ToneAudioBuffers, pitch: number, duration: number, velocity: number, when: number) {
+    this.sampler ??= new Tone.Sampler({ urls: sampleUrls(buffers), release: SAMPLE_RING, curve: "linear" }).connect(
+      this.bus,
+    );
+    this.sampler.triggerAttackRelease(Tone.Frequency(pitch, "midi").toNote(), duration, when, velocity);
+  }
+
+  /** Lift the dampers back onto the strings: silence within a tenth of a second or so. */
+  damp(when?: number) {
+    this.bus.gain.rampTo(0, DAMP, when);
+  }
+
+  dispose() {
+    this.pool.forEach((v) => v.synth.dispose());
+    this.sampler?.dispose();
+    this.bus.dispose();
+  }
+}
+
+const sampleUrls = (buffers: Tone.ToneAudioBuffers) =>
+  Object.fromEntries(SAMPLE_NOTES.map((n) => [n, buffers.get(n)])) as Record<string, Tone.ToneAudioBuffer>;
+
 export interface VoicesOptions {
   sound: SoundId;
   stereo: boolean;
   mix?: Mix;
+  sustain?: boolean;
   /** Called as the sampled grand piano loads, is ready, or fails. */
   onPiano?: (status: PianoStatus) => void;
 }
@@ -88,6 +223,11 @@ export class Voices implements Sink {
   private instruments: Partial<Record<`${Hand}:${SoundId}`, Instrument>> = {};
   private pianoBuffers: Tone.ToneAudioBuffers | null = null;
   private clickSynth: Tone.Synth | null = null;
+  private sustain: boolean;
+  /** Ringing notes per hand while the pedal is down; replaced each time it lifts. */
+  private ringing: Partial<Record<Hand, RingBank>> = {};
+  /** Banks that have been damped and are waiting to be thrown away once they are silent. */
+  private damped: { bank: RingBank; at: number }[] = [];
   private master: Tone.Gain;
   private limiter: Tone.Compressor;
   private output: Tone.Gain;
@@ -95,6 +235,7 @@ export class Voices implements Sink {
 
   constructor(opts: VoicesOptions) {
     this.sound = opts.sound;
+    this.sustain = opts.sustain ?? false;
     this.onPiano = opts.onPiano ?? (() => {});
     this.output = new Tone.Gain(1 / MAKEUP_GAIN).toDestination();
     this.limiter = new Tone.Compressor({
@@ -118,7 +259,44 @@ export class Voices implements Sink {
   // ---- Sink ------------------------------------------------------------------
 
   play(pitch: number, duration: number, velocity: number, ch: Channel, when: number) {
+    if (this.sustain && this.ring(pitch, duration, velocity, ch.hand, when)) return;
     this.instrument(ch.hand).triggerAttackRelease(Tone.Frequency(pitch, "midi").toNote(), duration, when, velocity);
+  }
+
+  /** Play a note that rings on after its key is released. False if it could not be done. */
+  private ring(pitch: number, duration: number, velocity: number, hand: Hand, when: number): boolean {
+    this.sweep();
+    const sound = this.resolved();
+    const bank = (this.ringing[hand] ??= new RingBank(this.channels[hand].gain));
+    if (sound !== "piano") return bank.play(sound, pitch, duration, velocity, when);
+    bank.playSampled(this.pianoBuffers!, pitch, duration, velocity, when);
+    return true;
+  }
+
+  /**
+   * Silence whatever is ringing on under the pedal, at `when` (an audio-clock time) or now. The pedal
+   * stays where it is: notes played afterwards ring again. A loop coming round uses this, so the end
+   * of the loop does not sound over its start.
+   */
+  damp(when?: number) {
+    const at = when ?? Tone.getContext().currentTime;
+    for (const hand of ["L", "R"] as Hand[]) {
+      const bank = this.ringing[hand];
+      if (!bank) continue;
+      bank.damp(at);
+      this.damped.push({ bank, at });
+      delete this.ringing[hand];
+    }
+  }
+
+  /** Throw away banks that were damped long enough ago to be silent. */
+  private sweep() {
+    const now = Tone.getContext().currentTime;
+    this.damped = this.damped.filter(({ bank, at }) => {
+      if (now < at + DAMP + 0.1) return true;
+      bank.dispose();
+      return false;
+    });
   }
 
   click(accent: boolean, when: number) {
@@ -132,6 +310,7 @@ export class Voices implements Sink {
 
   releaseAll() {
     Object.values(this.instruments).forEach((i) => i?.releaseAll());
+    this.damp();
   }
 
   // ---- settings --------------------------------------------------------------
@@ -139,6 +318,13 @@ export class Voices implements Sink {
   setSound(sound: SoundId) {
     this.sound = sound;
     if (sound === "piano") this.loadPiano();
+  }
+
+  /** Press or lift the sustain pedal. Lifting it silences what was ringing. */
+  setSustain(down: boolean) {
+    if (down === this.sustain) return;
+    this.sustain = down;
+    if (!down) this.damp();
   }
 
   /**
@@ -166,6 +352,8 @@ export class Voices implements Sink {
     Object.values(this.instruments).forEach((i) => i?.dispose());
     this.pianoBuffers?.dispose();
     this.clickSynth?.dispose();
+    Object.values(this.ringing).forEach((bank) => bank?.dispose());
+    this.damped.forEach(({ bank }) => bank.dispose());
     for (const c of Object.values(this.channels)) {
       c.gain.dispose();
       c.pan.dispose();
@@ -194,10 +382,13 @@ export class Voices implements Sink {
     });
   }
 
+  /** The sound in use: the grand piano plays as Clear until its samples arrive, or if they never do. */
+  private resolved(): SoundId {
+    return this.sound === "piano" && this.piano !== "ready" ? "clear" : this.sound;
+  }
+
   private instrument(hand: Hand): Instrument {
-    let sound = this.sound;
-    // Until the samples arrive (or if they never do), the grand piano plays as Clear.
-    if (sound === "piano" && this.piano !== "ready") sound = "clear";
+    const sound = this.resolved();
     const key = `${hand}:${sound}` as const;
     let inst = this.instruments[key];
     if (!inst) {
@@ -209,41 +400,10 @@ export class Voices implements Sink {
   }
 
   private createInstrument(sound: SoundId): Instrument {
-    switch (sound) {
-      case "soft":
-        return new Tone.PolySynth(Tone.Synth, {
-          oscillator: { type: "sine" },
-          envelope: { attack: 0.01, decay: 0.6, sustain: 0.3, release: 0.9 },
-          volume: -9,
-        });
-      case "epiano":
-        return new Tone.PolySynth(Tone.FMSynth, {
-          harmonicity: 3,
-          modulationIndex: 9,
-          oscillator: { type: "sine" },
-          modulation: { type: "sine" },
-          envelope: { attack: 0.002, decay: 1.4, sustain: 0.15, release: 1 },
-          modulationEnvelope: { attack: 0.002, decay: 0.25, sustain: 0, release: 0.2 },
-          volume: -14,
-        });
-      case "bright":
-        return new Tone.PolySynth(Tone.Synth, {
-          oscillator: { type: "square6" },
-          envelope: { attack: 0.003, decay: 0.25, sustain: 0.2, release: 0.4 },
-          volume: -19,
-        });
-      case "piano": {
-        const urls: Record<string, Tone.ToneAudioBuffer> = {};
-        for (const n of SAMPLE_NOTES) urls[n] = this.pianoBuffers!.get(n);
-        return new Tone.Sampler({ urls, release: 1 });
-      }
-      case "clear":
-      default:
-        return new Tone.PolySynth(Tone.Synth, {
-          oscillator: { type: "triangle" },
-          envelope: { attack: 0.005, decay: 0.3, sustain: 0.25, release: 0.6 },
-          volume: -12,
-        });
-    }
+    if (sound === "piano") return new Tone.Sampler({ urls: sampleUrls(this.pianoBuffers!), release: 1 });
+    const { fm, options } = SYNTHS[sound];
+    return fm
+      ? new Tone.PolySynth(Tone.FMSynth, options as ConstructorParameters<typeof Tone.FMSynth>[0])
+      : new Tone.PolySynth(Tone.Synth, options as ConstructorParameters<typeof Tone.Synth>[0]);
   }
 }

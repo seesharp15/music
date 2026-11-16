@@ -18,6 +18,7 @@ import { Trimmer, formatTime } from "./Trimmer";
 interface Prefs {
   sound: SoundId;
   stereo: boolean;
+  sustain: boolean;
   syncLines: boolean;
   keyMode: KeyMode;
 }
@@ -71,7 +72,7 @@ export function Practice({ song }: { song: Song }) {
 
 function PracticeView({ song, player }: { song: Song; player: Player }) {
   const state = useSyncExternalStore(player.subscribe, player.getState);
-  const { playing, stepping, rate, loop, mix, sound, piano, stereo, metronome } = state;
+  const { playing, stepping, rate, loop, mix, sound, piano, stereo, sustain, metronome } = state;
   const rhythm = useMemo(() => analyzeRhythm(song), [song]);
   const [syncLines, setSyncLines] = useState(() => loadPrefs().syncLines ?? true);
   const [keyMode, setKeyMode] = useState<KeyMode>(() => loadPrefs().keyMode ?? "song");
@@ -124,7 +125,10 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
   /** Anything repeating (a loop, or a zoomed-in stretch) counts as looping. */
   const toggleLoop = () => (player.state.loop.enabled || player.state.window ? playWholeSong() : startLoop());
 
-  useEffect(() => savePrefs({ sound, stereo, syncLines, keyMode }), [sound, stereo, syncLines, keyMode]);
+  useEffect(
+    () => savePrefs({ sound, stereo, sustain, syncLines, keyMode }),
+    [sound, stereo, sustain, syncLines, keyMode],
+  );
 
   // Keyboard shortcuts.
   useEffect(() => {
@@ -149,6 +153,8 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
         clearSelection();
       } else if (e.key === "m" || e.key === "M") {
         player.setMetronome(!player.state.metronome);
+      } else if (e.key === "p" || e.key === "P") {
+        player.setSustain(!player.state.sustain);
       } else if (e.key === "1") {
         player.toggleMute("L");
       } else if (e.key === "2") {
@@ -205,6 +211,15 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
             title="Left hand in your left ear, right hand in your right"
           >
             Stereo split
+          </button>
+          <button
+            className={`chip ${sustain ? "is-on" : ""}`}
+            onClick={() => player.setSustain(!sustain)}
+            aria-pressed={sustain}
+            title="Hold the sustain pedal down: notes ring on after they are released (P)"
+          >
+            <PedalIcon />
+            Sustain
           </button>
           {song.bpm && (
             <button
@@ -359,10 +374,19 @@ function PracticeView({ song, player }: { song: Song; player: Player }) {
 
         <p className="hint">
           Space play/pause · ←/→ skip 5s of listening · ↑/↓ speed · , / . step · L loop · Esc clear loop · M metronome ·
-          R restart · 1 / 2 mute left / right
+          R restart · P sustain pedal · 1 / 2 mute left / right
         </p>
       </Collapsible>
     </main>
+  );
+}
+
+function PedalIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden style={{ marginRight: 6, verticalAlign: "-3px" }}>
+      <path d="M9 3h6v9a5 5 0 0 1-5 5H9z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M5 21h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
   );
 }
 
