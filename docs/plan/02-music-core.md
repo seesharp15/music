@@ -289,3 +289,36 @@ which S2.6 then implements over IndexedDB. Criterion 7 is therefore checked in S
 | 5 | Pass — `src/project/ops.test.ts`: 16 unknown-id cases, 8 out-of-range, 38 bad-value, 3 overlap and 16 locked-track cases, each asserting the code, the index of the refused op, and a project deep-equal to before; and each silent correction. |
 | 6 | Pass — `src/project/store.test.ts`, three seeds: 200 random edits, 200 undos (each step compared with the state on the way there), 200 redos. Undo history for 200 steps on a 3,000-note project: 41 KB. |
 
+### S2.6 — storage, the catalog, export and import
+
+- **Closing the tab is covered twice.** The store's last write on `pagehide` goes to IndexedDB and,
+  synchronously, to `localStorage` (`piano-tutor:unsaved:<id>`), because a database write begun as a page
+  closes is not certain to finish — least of all in Safari. The next `loadProject` takes whichever is
+  newer, writes it to the database and removes the copy. Tested by leaving the page, closing the tab
+  and reloading, each less than 800 ms after an edit.
+- **Stored data is validated when read, not when written.** `loadProject` returns a project that passes
+  `ProjectSchema` or a typed failure — `missing`, `invalid` (with the errors and the newest snapshot that
+  is itself still valid), or `unavailable` (the database would not open). It has no path that throws.
+- **Importing never overwrites.** A project file whose id is already stored is saved beside the
+  existing one under a new id, with "(imported)" added to its title. A song file becomes a user song
+  (`u-…`).
+- **Asking the browser to keep the data** happens at the first save, and the answer is remembered
+  (`persistenceAnswer()`); the "quiet warning" itself needs a screen and is Stage 3's Settings.
+- **The catalog is built and tested but not yet wired into the Library or Practice**: listing My songs
+  is S3.1 and playing `u-…` songs is S3.8. Nothing in Practice or the Library changed in this package.
+- **`window.__app.kit()`** gives browser tests projects, the store, storage and the catalog. It loads no
+  audio code, so `e2e/storage.spec.ts` is also run in WebKit in CI — the browser where stored songs
+  are most at risk.
+- **Bundle care.** The first version of this package split the one small file the Library and Practice
+  share into four, because the bundler files shared modules by which screens use them. The storage
+  layer now imports nothing those screens load up front (user songs are normalized by the catalog, not
+  by storage), and Practice downloads the same four files as before: 130.3 KB gzipped, +0.1 KB.
+
+| # | Result |
+| --- | --- |
+| 7 | Pass — `e2e/storage.spec.ts`: edits survive leaving the page, closing the tab and reloading, with no explicit save; a damaged project comes back as `{ ok: false, reason: "invalid", errors, snapshot }` with the newest sound snapshot, skipping damaged ones. |
+| 13 | Pass — a project exported by a real download and imported through a real file picker into an empty database is deep-equal (`e2e/storage.spec.ts`); four seeds of 150 random edits round-trip in `src/project/file.test.ts`; nine kinds of malformed file are each refused with a message that names the problem. |
+
+WebKit has not been run locally (it is not installed in the build environment): the storage tests'
+first WebKit run is in CI.
+

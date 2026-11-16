@@ -5,6 +5,7 @@ package, what changed, and who needs to know. Newest first.
 
 | Date | Package | Change | Affects |
 | --- | --- | --- | --- |
+| 2026-11-16 | S2.6 | Storage (contracts §10): two `localStorage` keys added, `piano-tutor:unsaved:<projectId>` and `piano-tutor:storage-persist`; a `kv` entry `songs:index`; and the storage layer's promises written down (`loadProject`'s result type, validate-on-read, the `Catalog`). Additive. | Stage 3 (S3.1's read-only screen switches on `reason: "invalid"`; S3.8 loads `u-…` songs through `catalog().load`; S3.9's export-all must include nothing from `piano-tutor:unsaved:*`). |
 | 2026-11-16 | S2.3 | Contracts §5 now states what each `EditOp` does at its edges (range semantics of `setChords`, what the range operations move, what a locked track refuses, `undefined` in a patch) and what the store offers beyond `ProjectStore` (`undoLabel`, `redoLabel`, `saveError`, `flush`, `dispose`, `ProjectPersistence`). No type changed. | Stage 3's tools and Stage 5's generators, which emit these ops. |
 | 2026-11-16 | S2.1 | `TimeMap` gains `meterAt(tick)` and `bpmAt(tick)` (contracts §1), so code holding only a time map can ask how a bar divides. Additive. | Anything that implements `TimeMap` itself rather than calling `makeTimeMap` — nothing does. |
 | 2026-11-16 | S1.5 | `Sink` gains an optional `damp(when?)` (contracts §6): silence what is ringing under the sustain pedal without lifting it. Additive. | Stage 2's `AudioEngine`, which takes the sink's place, must implement it; the player calls it at every loop wrap. |

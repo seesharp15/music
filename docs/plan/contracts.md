@@ -782,6 +782,8 @@ Local-first: a song the author builds lives in their browser until they export i
 | `localStorage` | `piano-tutor:flags` | feature flags turned on by hand |
 | `localStorage` | `piano-tutor:access-code` | the code sent as `x-access-code` |
 | `localStorage` | `piano-tutor:latency` | measured input latency per device, ms |
+| `localStorage` | `piano-tutor:storage-persist` | what the browser answered when asked to keep this site's data: `persisted`, `refused` or `unsupported` |
+| `localStorage` | `piano-tutor:unsaved:<projectId>` | a project written as the page closed, when the database write may not have finished; picked up and removed by the next load |
 | `sessionStorage` | `piano-tutor:session:<songId>` | position, speed, loop, zoom, mix (existing, migrated) |
 | IndexedDB `piano-tutor` | store `projects` | `Project` by id |
 | | store `projectMeta` | `{ id, title, updatedAt, bars, preview }` for fast listing |
@@ -793,6 +795,30 @@ Local-first: a song the author builds lives in their browser until they export i
 | | | `assist:profile` — the author's preferences across all songs |
 | | | `studio:<projectId>` — cursor, zoom, active track, tool, hint mode, authorship view |
 | | | `chat:<projectId>` — the last thirty co-writer turns |
+| | | `songs:index` — a listing entry (`SongIndexEntry` plus `updatedAt`, `projectId`) for every user song, so the Library never opens one to draw its card |
+
+`src/storage/` is the only code that touches the database. What it promises:
+
+```ts
+/** Never throws, never returns a half-valid project. */
+export function loadProject(id: string): Promise<
+  | { ok: true; project: Project; recovered?: "unsaved" }
+  | { ok: false; reason: "missing" }
+  | { ok: false; reason: "invalid"; errors: string[]; snapshot: { project: Project; at: string } | null }
+  | { ok: false; reason: "unavailable"; message: string }>;
+export function saveProject(project: Project, opts?: { snapshot?: boolean }): Promise<void>;
+export const projectPersistence: ProjectPersistence;          // what the project store saves through
+/** Reads a picked file and stores what is in it; refuses with a message that names the problem. */
+export function importFile(file: Blob): Promise<Imported>;
+```
+
+Projects and user songs are stored as written and **validated on the way out** (`parseProject`,
+`parseSong`); a user song is normalized when the catalog loads it, as a bank song is when fetched.
+`Catalog` (`src/library/catalog.ts`) merges the bank index with user songs: `list()`, `find(id)`,
+`load(id)`, `projects()`. An id starting `u-` is looked for on the device, any other in the bank.
+
+A project file is the project as JSON (`<title>.piano-project.json`); a song file is the song
+(`<title>.piano-song.json`). Importing a project whose id is already stored keeps both.
 
 Exporting one project writes the project alone. "Export all my songs" (Stage 3) also carries each
 project's `kv` entries and takes.

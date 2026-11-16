@@ -27,7 +27,7 @@ export default defineConfig({
       },
     },
     ...(withWebKit
-      ? [{ name: "webkit", use: { ...devices["iPhone 14"] }, testMatch: /(library|routes)\.spec\.ts/ }]
+      ? [{ name: "webkit", use: { ...devices["iPhone 14"] }, testMatch: /(library|routes|storage)\.spec\.ts/ }]
       : []),
   ],
   webServer: {
