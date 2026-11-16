@@ -29,6 +29,8 @@ export interface DragPreview {
   dDur: number;
   /** The originals stay where they are: this is a copy being placed. */
   copy: boolean;
+  /** A sweep of the Erase tool: these notes are about to go, and are drawn as ghosts. */
+  erase?: boolean;
 }
 
 export interface DrawState {
@@ -223,11 +225,15 @@ registerLayer({
       const base = track.muted ? 0.18 : editable.has(track.id) ? (track.id === ui.activeTrack ? 1 : 0.8) : 0.32;
       for (const n of track.notes) {
         const held = drag?.ids.has(n.id);
+        if (held && drag!.erase) {
+          paint(track, n, 0.15, false);
+          continue;
+        }
         if (held && !drag!.copy) continue; // drawn where it is being dragged to, below
         paint(track, n, base, selected.has(n.id) && !held);
       }
     }
-    if (drag) {
+    if (drag && !drag.erase) {
       for (const track of project.tracks) {
         if (track.kind !== "notes") continue;
         for (const n of track.notes) {

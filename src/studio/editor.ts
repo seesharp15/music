@@ -6,7 +6,9 @@
 import type { NoteColor } from "../components/stage-draw";
 import { gridTicks, quantize } from "../music/quantize";
 import type { NoteTrack, Project } from "../project/types";
-import { drawLayers, type DragPreview, type DrawState } from "./layers";
+import { addNote, eraseNotes, grabbable, moveNotes, resizeNotes, select, setCursor } from "./actions";
+import { initialState, LONG_PRESS_MS, step, type Input, type Intent } from "./interaction";
+import { drawLayers, trackColor, type DragPreview, type DrawState } from "./layers";
 import type { Session } from "./session";
 import type { UiState } from "./ui-store";
 import {
@@ -20,7 +22,6 @@ import {
   keyboardOf,
   keyRect,
   yAtTick,
-  zoneAt,
   zoomAbout,
   type View,
 } from "./view";
@@ -41,6 +42,8 @@ export interface Editor {
   scrollEnd(): void;
   /** Zoom by `factor` (above 1 shows more), keeping the music at canvas height `y` where it is. */
   zoomBy(factor: number, y?: number): void;
+  /** Abandon a drag or a box in progress (Escape). */
+  cancel(): void;
   /** Frames drawn so far, and how long the last ones took: for the performance check. */
   stats(): { frames: number; lastMs: number };
   dispose(): void;
@@ -221,8 +224,7 @@ export function createEditor(canvas: HTMLCanvasElement, session: Session): Edito
     scrollEnd() {
       if (!scrolling) return;
       scrolling = false;
-      const snapped = Math.max(0, quantize(Math.round(tick), ui.getState().snap));
-      if (snapped !== ui.getState().cursor) ui.setState({ cursor: snapped });
+      setCursor(session, Math.max(0, quantize(Math.round(tick), ui.getState().snap)));
       dirty = true;
     },
     zoomBy(factor, y) {
@@ -233,6 +235,7 @@ export function createEditor(canvas: HTMLCanvasElement, session: Session): Edito
       ui.setState({ ticksPerPx: z.ticksPerPx, cursor: Math.max(0, quantize(Math.round(tick), ui.getState().snap)) });
     },
     stats: () => ({ frames, lastMs }),
+    cancel() {},
     dispose() {
       cancelAnimationFrame(raf);
       ro.disconnect();
@@ -241,60 +244,119 @@ export function createEditor(canvas: HTMLCanvasElement, session: Session): Edito
     },
   };
 
-  // ── Scrolling and zooming. Tools and note gestures are S3.3's. ──
-  const pointers = new Map<number, { x: number; y: number }>();
-  let moved = 0;
-  let pinch = 0;
+  // ── Gestures: DOM events into the state machine, its intents out to the actions. ──
+  let machine = initialState();
+  let pressTimer = 0;
+  let wheelEnd = 0;
+  const heldKeys = new Map<number, { pitch: number; track: string }>();
+
   const local = (e: PointerEvent | WheelEvent) => {
     const r = canvas.getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   };
+  const showHeld = () => {
+    const p = store.getState().project;
+    const lit = new Map<number, NoteColor>();
+    for (const k of heldKeys.values()) lit.set(k.pitch, trackColor(p, k.track));
+    api.setHeld(lit);
+  };
+
+  const carryOut = (intent: Intent) => {
+    switch (intent.type) {
+      case "scroll":
+        return api.scrollBy(intent.px);
+      case "scrollEnd":
+        return api.scrollEnd();
+      case "zoom":
+        return api.zoomBy(intent.factor, intent.y);
+      case "cursor":
+        return setCursor(session, intent.tick);
+      case "chord":
+        return ui.setState({ sheet: "chords", chordTick: Math.max(0, Math.round(intent.tick)) });
+      case "select":
+        return select(session, intent.ids, intent.mode);
+      case "box":
+        return api.setBox(intent.box);
+      case "preview":
+        return api.setDrag(intent.drag);
+      case "move":
+        return moveNotes(session, intent.ids, intent.dTick, intent.dPitch, intent.copy);
+      case "resize":
+        return resizeNotes(session, intent.ids, intent.dDur);
+      case "add":
+        return void addNote(session, intent.pitch, intent.tick);
+      case "erase":
+        return eraseNotes(session, intent.ids);
+      case "audition":
+        return playback.audition([intent.pitch], ui.getState().activeTrack);
+      case "keyDown": {
+        const track = ui.getState().activeTrack;
+        heldKeys.set(intent.id, { pitch: intent.pitch, track });
+        session.keys.down(intent.pitch, intent.velocity, "screen");
+        return showHeld();
+      }
+      case "keyUp": {
+        const k = heldKeys.get(intent.id);
+        if (!k) return;
+        heldKeys.delete(intent.id);
+        session.keys.up(k.pitch, "screen");
+        return showHeld();
+      }
+    }
+  };
+
+  const feed = (input: Input) => {
+    if (!view) return;
+    const s = ui.getState();
+    const p = store.getState().project;
+    const out = step(machine, input, {
+      view,
+      tool: s.tool,
+      readOnly: session.readOnly,
+      notes: session.readOnly ? [] : grabbable(p, s),
+      selection: new Set(s.selection),
+      snap: gridTicks(s.snap),
+      addToSelection: s.addToSelection,
+    });
+    machine = out.state;
+    for (const intent of out.intents) carryOut(intent);
+  };
+
+  const pointerOf = (e: PointerEvent, kind: "down" | "move" | "up" | "cancel"): Input => ({
+    kind,
+    id: e.pointerId,
+    ...local(e),
+    t: e.timeStamp,
+    pointer: e.pointerType === "touch" ? "touch" : e.pointerType === "pen" ? "pen" : "mouse",
+    shift: e.shiftKey,
+    alt: e.altKey,
+  });
   const onDown = (e: PointerEvent) => {
     if (e.button !== 0) return;
     playback.wake();
-    const at = local(e);
-    if (view && zoneAt(view, at.x, at.y) === "keys") return;
     canvas.setPointerCapture(e.pointerId);
-    pointers.set(e.pointerId, at);
-    moved = 0;
-    pinch = 0;
+    feed(pointerOf(e, "down"));
+    // A finger held still becomes a long press: the machine is told the time has passed.
+    clearTimeout(pressTimer);
+    const at = e.timeStamp;
+    pressTimer = window.setTimeout(() => feed({ kind: "time", t: at + LONG_PRESS_MS }), LONG_PRESS_MS);
+    e.preventDefault();
   };
-  const onMove = (e: PointerEvent) => {
-    const was = pointers.get(e.pointerId);
-    if (!was) return;
-    const at = local(e);
-    pointers.set(e.pointerId, at);
-    if (pointers.size === 2) {
-      const [a, b] = [...pointers.values()];
-      const spread = Math.max(20, Math.abs(a.y - b.y));
-      if (pinch) api.zoomBy(pinch / spread, (a.y + b.y) / 2);
-      pinch = spread;
-      moved = Infinity;
-      return;
-    }
-    moved += Math.abs(at.y - was.y) + Math.abs(at.x - was.x);
-    if (moved > 8) api.scrollBy(at.y - was.y);
-  };
+  const onMove = (e: PointerEvent) => feed(pointerOf(e, "move"));
   const onUp = (e: PointerEvent) => {
-    const at = pointers.get(e.pointerId);
-    if (!at) return;
-    pointers.delete(e.pointerId);
-    pinch = 0;
-    if (pointers.size > 0) return;
-    if (moved <= 8 && view && zoneAt(view, at.x, at.y) === "bars") {
-      // A tap on the bar gutter puts the cursor there.
-      const t = view.tick + (frame(view).lineY - at.y) * view.ticksPerPx;
-      ui.setState({ cursor: Math.max(0, quantize(Math.round(t), ui.getState().snap)) });
-    }
-    api.scrollEnd();
+    clearTimeout(pressTimer);
+    feed(pointerOf(e, "up"));
   };
-  let wheelEnd = 0;
+  const onCancel = (e: PointerEvent) => {
+    clearTimeout(pressTimer);
+    feed(pointerOf(e, "cancel"));
+  };
   const onWheel = (e: WheelEvent) => {
     e.preventDefault();
     const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? height : 1;
-    if (e.ctrlKey || e.metaKey) api.zoomBy(Math.exp((e.deltaY * unit) / 240), local(e).y);
-    else {
-      api.scrollBy(-e.deltaY * unit);
+    const zoom = e.ctrlKey || e.metaKey;
+    feed({ kind: "wheel", ...local(e), dy: e.deltaY * unit, zoom });
+    if (!zoom) {
       clearTimeout(wheelEnd);
       wheelEnd = window.setTimeout(() => api.scrollEnd(), 140);
     }
@@ -302,20 +364,20 @@ export function createEditor(canvas: HTMLCanvasElement, session: Session): Edito
   canvas.addEventListener("pointerdown", onDown);
   canvas.addEventListener("pointermove", onMove);
   canvas.addEventListener("pointerup", onUp);
-  canvas.addEventListener("pointercancel", onUp);
+  canvas.addEventListener("pointercancel", onCancel);
   canvas.addEventListener("wheel", onWheel, { passive: false });
   const dispose = api.dispose;
+  api.cancel = () => feed({ kind: "escape" });
   api.dispose = () => {
     dispose();
     clearTimeout(wheelEnd);
+    clearTimeout(pressTimer);
+    for (const k of heldKeys.values()) session.keys.up(k.pitch, "screen");
     canvas.removeEventListener("pointerdown", onDown);
     canvas.removeEventListener("pointermove", onMove);
     canvas.removeEventListener("pointerup", onUp);
-    canvas.removeEventListener("pointercancel", onUp);
+    canvas.removeEventListener("pointercancel", onCancel);
     canvas.removeEventListener("wheel", onWheel);
   };
   return api;
 }
-
-/** The snap step in ticks. */
-export const snapTicks = (s: Pick<UiState, "snap">) => gridTicks(s.snap);

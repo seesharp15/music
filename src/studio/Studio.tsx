@@ -1,16 +1,19 @@
 import { useEffect, useState } from "react";
-import { ConfirmDialog, PromptDialog } from "../app/ui/Dialog";
+import { ConfirmDialog, Dialog, PromptDialog } from "../app/ui/Dialog";
 import { Menu } from "../app/ui/Menu";
 import { exposeStudio } from "../app/testHooks";
 import { exportProject } from "../storage";
+import { installCommands, SHORTCUTS } from "./commands";
 import { EditorCanvas } from "./EditorCanvas";
 import { ViewMenu } from "./ViewMenu";
 import { SessionContext, useSession, useStoreState, useUi } from "./context";
 import { FirstRun } from "./FirstRun";
+import { Inspector } from "./Inspector";
 import { duplicateProject, removeProject, studioHref } from "./projects";
 import type { Session } from "./session";
 import { Sheet } from "./sheets/Sheet";
 import { SongSettings } from "./SongSettings";
+import { Toolbar } from "./Toolbar";
 import { TrackTabs } from "./TrackTabs";
 import "../app/ui/ui.css";
 import "./studio.css";
@@ -19,7 +22,11 @@ import "./studio.css";
 export function Studio({ session, banner }: { session: Session; banner?: React.ReactNode }) {
   useEffect(() => {
     exposeStudio(session);
-    return () => exposeStudio(null);
+    const offCommands = installCommands(session);
+    return () => {
+      offCommands();
+      exposeStudio(null);
+    };
   }, [session]);
   return (
     <SessionContext.Provider value={session}>
@@ -35,9 +42,13 @@ export function Studio({ session, banner }: { session: Session; banner?: React.R
           <Sheet id="settings" title="Song settings">
             <SongSettings />
           </Sheet>
+          <Sheet id="inspector" title="Selection">
+            <Inspector />
+          </Sheet>
         </div>
         {!session.readOnly && (
           <div className="studio-controls">
+            <Toolbar />
             <TrackTabs />
           </div>
         )}
@@ -60,7 +71,7 @@ function StudioBar() {
   const session = useSession();
   const { store, ui, readOnly } = session;
   const { project, canUndo, canRedo, undoLabel, redoLabel, dirty, saveError } = useStoreState();
-  const [dialog, setDialog] = useState<"rename" | "delete" | null>(null);
+  const [dialog, setDialog] = useState<"rename" | "delete" | "keys" | null>(null);
 
   const duplicate = async () => {
     await store.flush();
@@ -116,6 +127,7 @@ function StudioBar() {
               { label: "Rename…", onSelect: () => setDialog("rename") },
               { label: "Duplicate", onSelect: () => void duplicate() },
               { label: "Export project", onSelect: () => exportProject(store.getState().project) },
+              { label: "Keyboard shortcuts", onSelect: () => setDialog("keys") },
               { label: "Delete…", danger: true, onSelect: () => setDialog("delete") },
             ]}
           />
@@ -130,6 +142,23 @@ function StudioBar() {
           onConfirm={(title) => store.apply([{ op: "patchSong", patch: { title } }], "Rename song")}
           onClose={() => setDialog(null)}
         />
+      )}
+      {dialog === "keys" && (
+        <Dialog title="Keyboard shortcuts" onClose={() => setDialog(null)}>
+          <dl className="shortcuts">
+            {SHORTCUTS.map((k) => (
+              <div key={k.keys}>
+                <dt>{k.keys}</dt>
+                <dd>{k.does}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="dialog-actions">
+            <button className="btn is-primary" onClick={() => setDialog(null)}>
+              Done
+            </button>
+          </div>
+        </Dialog>
       )}
       {dialog === "delete" && (
         <ConfirmDialog

@@ -4,7 +4,7 @@
  * Cursor, zoom, active track and tool are remembered per project.
  */
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { Grid } from "../music/quantize";
+import { gridTicks, type Grid } from "../music/quantize";
 import { PPQ } from "../music/time";
 
 export type Tool = "select" | "draw" | "erase";
@@ -155,3 +155,6 @@ export function lengthTicks(len: StepLength): number {
   if (len.triplet) t = (t * 2) / 3;
   return Math.max(1, Math.round(t));
 }
+
+/** The snap step in ticks. */
+export const snapTicks = (s: Pick<UiState, "snap">) => gridTicks(s.snap);

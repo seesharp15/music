@@ -10,6 +10,12 @@ import { createPlayback, type Playback } from "./playback";
 import { noteClosing, studioKey } from "./projects";
 import { createUiStore, sanitizeSavedUi, savedUiOf, type SavedUi, type UiStore } from "./ui-store";
 
+export type KeySource = "screen" | "typing" | "midi";
+export interface KeySink {
+  down(pitch: number, velocity: number, source: KeySource): void;
+  up(pitch: number, source: KeySource): void;
+}
+
 export interface Session {
   projectId: string;
   store: ProjectStoreHandle;
@@ -18,6 +24,8 @@ export interface Session {
   playback: Playback;
   /** The canvas's controller, while the canvas is on screen. */
   editor: Editor | null;
+  /** Where key presses go, whatever they came from: the screen, the computer keyboard, MIDI. */
+  keys: KeySink;
   /** Nothing can be changed: the project on screen is a restore point being looked at. */
   readOnly: boolean;
   /** Save what is unsaved, then stop saving and listening. */
@@ -100,12 +108,19 @@ export function openSession(project: Project, savedUi: unknown, opts: { readOnly
 
   const playback = createPlayback({ store, ui });
 
+  // Until note input is wired in, a key only makes its sound.
+  const keys: KeySink = {
+    down: (pitch, velocity) => playback.noteOn(pitch, velocity, ui.getState().activeTrack),
+    up: (pitch) => playback.noteOff(pitch, ui.getState().activeTrack),
+  };
+
   return {
     projectId: project.id,
     store,
     ui,
     playback,
     editor: null,
+    keys,
     readOnly,
     close() {
       unsubscribe();
