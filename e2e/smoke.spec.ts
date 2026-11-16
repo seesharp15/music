@@ -6,8 +6,27 @@ import { open, playerReady } from "./helpers";
  * broken. It runs in Chromium and, where WebKit is installed, on an iPhone-sized WebKit too.
  */
 test("practise a song: play, loop a section, step, change speed, and pick up after a reload", async ({ page }) => {
+  // If the page never gets going, say what it said instead: this test also runs on browsers that
+  // cannot be run at a desk, and "heading not found" alone explains nothing.
+  const problems: string[] = [];
+  page.on("pageerror", (e) => problems.push(`uncaught: ${e.message}`));
+  page.on("console", (m) => {
+    if (m.type() === "error") problems.push(`console: ${m.text()}`);
+  });
+  page.on("requestfailed", (r) => problems.push(`request failed: ${r.url()} (${r.failure()?.errorText})`));
+
   await open(page, "#/play/rewrite-the-stars");
-  await expect(page.getByRole("heading", { level: 1, name: "Rewrite the Stars" })).toBeVisible();
+  try {
+    await expect(page.getByRole("heading", { level: 1, name: "Rewrite the Stars" })).toBeVisible();
+  } catch (e) {
+    const said = await page
+      .locator("body")
+      .innerText()
+      .catch(() => "(no body)");
+    throw new Error(
+      `${(e as Error).message}\n\nThe page shows:\n${said}\n\nProblems:\n${problems.join("\n") || "(none)"}`,
+    );
+  }
   await playerReady(page);
 
   // Play: the playhead moves.
