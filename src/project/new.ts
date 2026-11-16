@@ -1,4 +1,4 @@
-import { PPQ, ticksPerBar, type MeterEvent } from "../music/time";
+import { ticksPerBar, type MeterEvent } from "../music/time";
 import { PROJECT_FORMAT } from "./schema";
 import type { DrumTrack, NoteTrack, Project } from "./types";
 
@@ -85,5 +85,3 @@ export function newProject(opts: NewProjectOptions = {}): Project {
     ideas: [],
   };
 }
-
-export { PPQ };
