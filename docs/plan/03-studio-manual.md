@@ -302,4 +302,211 @@ store, the layer list and the sheet frame, all fixed by S3.1 and S3.2.
 
 ## Build notes
 
-_Empty._
+Built on 16 November 2026, one package at a time on one branch (`claude/dreamy-sagan-wf6ajw`), one
+commit per package, in the order S3.1 to S3.9, with CI run on every push. Everything is behind the
+`studio` flag: with it off the routes do not exist, the Library shows no My songs, no service worker
+is registered, and Practice and the Library download none of it.
+
+To see it: add `?flags=studio` to the address once (or put `studio` in `piano-tutor:flags`).
+
+### S3.1 — frame, project list, My songs
+
+- **New song makes the song at once** — C major, 100 BPM, 4/4, eight empty bars — and opens it. There is
+  no dialog to fill in first; tempo, key and metre are in Song settings, one tap on the title.
+- **A stored project that fails validation never reaches the editor.** The screen names the problems
+  (the first five) and offers the newest good snapshot two ways: *Restore this version*, or *Look at it
+  first*, which opens it in the editor with nothing that can change it — no tools, no undo, no saving.
+- **Sheets sit under the editor on a phone and the editor shrinks to stay in view**; they do not cover
+  it. On screens 1024 px and wider they are a column at the side.
+- **Leaving the editor saves, and the list waits for it.** The first version listed songs before the
+  closing save had landed, so a song renamed a moment ago showed its old name. `settled()` in
+  `src/studio/projects.ts` is what My songs waits on.
+
+### S3.2 — the editor canvas
+
+- **The cursor line is fixed on screen and the music moves under it**, like a tape head. Scrolling *is*
+  moving the cursor: it settles on the nearest grid line when the scroll ends. During playback the same
+  line is the playhead; stopping returns to the cursor.
+- **"Fit" shows what fits.** The plan's "the active track's range plus an octave either side" would give
+  ten-pixel keys on a phone. Fit shows that range when it fits at a playable width (white keys of 22 px
+  or more) and otherwise two or more whole octaves around the notes near the cursor. An empty melody
+  track starts at C4–B5, chords at C3–B4, bass at C2–B3.
+- **Zoom, key range and colouring are also buttons** (the magnifier at the top right of the canvas), so
+  nothing depends on a pinch or a wheel.
+- **The canvas redraws only when something it draws has changed**, not sixty times a second.
+- **Practice's waterfall, after the drawing code was shared (criterion 13).** Two checks. Before the
+  extraction, every call the waterfall makes on its canvas for one frame was recorded from the old code
+  — ten scenes: both sizes, three moments, all 88 keys, a muted hand — and `e2e/stage-frames.spec.ts`
+  holds the new code to the same calls with the same numbers, call for call. And twenty frames of both
+  bank songs at both sizes were captured as pixels before and after: identical.
+- **Practice is still four files.** Sharing the drawing helpers made the bundler give them a file of
+  their own, and Practice went from four downloads to six. `vite.config.ts` now pins the few small
+  modules Practice shares with the Studio into files it already loads.
+- **The list of songs loads no audio.** `#/studio` was at first one chunk with the editor in it. CI's
+  WebKit — which hangs, some of the time, when Tone.js loads — failed that page on two pushes. The
+  editor is now fetched when a song is opened, and a test checks the list page asks for no audio code.
+
+### S3.3 — tools, selection, the keyboard
+
+- **Explicit tools, as planned, and these rules for touch:** a drag on a note moves it; a drag on its
+  top edge resizes it; a drag on empty space scrolls; a long press on empty space, then a drag, draws a
+  box. With a mouse, a drag on empty space is the box. Erase sweeps. Two fingers always pinch, the
+  gutters always scroll, the keyboard always plays. A note is never harder to take hold of than a
+  44 px target, however small it is drawn.
+- **Tab is not taken.** The plan gives it to "next track". A canvas that swallows Tab traps a keyboard
+  user on it, so Tab still moves focus and tracks are on `[` and `]`.
+- **Added, so the selection needs no pointer:** `S` selects the notes at the cursor (`Shift+S` adds
+  them), `Alt+↑/↓` steps from note to note. The whole list is under *Keyboard shortcuts* in the song menu.
+- **Every edit is one labelled undo step**, including a sweep of the eraser and a drag of thirty notes.
+  An edit the project refuses (a locked track, off the end of the piano) changes nothing and is said
+  aloud by the live region.
+- **The clipboard is `localStorage`**, so a copy made in one song pastes into another.
+
+### S3.4 — note input
+
+- **One path for every key** (`session.keys`): it always sounds; then step entry writes it, or a
+  recording captures it, or — with "Keys write notes" off, or while the song is playing — nothing more.
+- **Recording with a loop writes each pass as the loop comes round**, so it is heard under the next
+  one: a layer is an undo step. Without a loop the whole take is one step. Playback may run sixty-four
+  bars past the end of the song while recording, and the song grows to fit what was played. Keys
+  played during the count-in are not part of the take.
+- **A key touched for a few milliseconds made no sound.** The release was asked for at the same instant
+  as the attack, as the audio clock reads from the page. A mouse click is that short; a brushed finger
+  can be. Notes played by hand now sound for at least 60 ms (`src/audio/engine.ts`, the live path only —
+  Practice does not use it). Found by the latency test, which clicks.
+- **The note-length row is ten buttons wide.** At 390 px each is 38 px wide and 46 px tall — under the
+  44 px the plan asks of touch targets, in width only. The plan's own drawing has nine in that row. The
+  tool row beneath it holds 44 px at 390 and shares the width evenly below that.
+- **What is selected floats over the canvas** as a chip: it opens the inspector, switches "add to
+  selection" on, and clears. It replaced two buttons the tool row had no room for.
+
+### S3.5 — chords
+
+- **"Offers to rewrite" is a ticked box in the picker**, shown only when the chord under it has notes
+  still exactly as Write to track wrote them. One undo takes back the chord and its notes together.
+- **"Exactly as written" means** one of the chord's close-position voicings, struck one of the three
+  ways (held, every bar, every beat). So a note moved up an octave may still be a voicing and still
+  count as untouched; a note moved by a semitone, lengthened, added or removed never does.
+- **Write to track, used again, replaces what it wrote** and leaves alone any chord whose notes have
+  been changed by hand, saying how many it left.
+- Voicings sit with their lowest note in the octave from C3. Removing a chord leaves its notes alone.
+
+### S3.6 — sections
+
+- **Delete asks how:** close the gap; keep the bars but empty them; or remove just the name.
+- **Move** swaps a section with its neighbour by copying the later one in ahead of the earlier and
+  removing it from where it was — one step, built on `copyRange` and `deleteTime`. The moved section
+  therefore gets a new id. Sections that overlap cannot change places, and the buttons say so by
+  being disabled.
+- Section colours run up the bar gutter with the name; a loop is marked and what is outside it dimmed.
+
+### S3.7 — tracks, settings, transport
+
+- **Solo and Hide are the editor's, not the song's**: nothing in the project changes. Hidden tracks are
+  remembered per project with the cursor and zoom; solo is not.
+- **Moving a track** is `removeTrack` then `addTrack` at the new place, so its notes get new ids.
+- **Tap tempo sets the tempo when the taps stop** (0.9 s), as one undo step, and is the plain average of
+  the gaps: whoever taps 150 gets 150. (`estimateTempo`, which reads whole rhythms, would say 75.)
+- **Loop** takes whole bars around the selection, else the section under the cursor, else four bars.
+- On wide screens tracks and sections are a permanent left column, as planned; the inspector, chords
+  and settings open at the right.
+
+### S3.8 — Practice it, files
+
+- **MIDI is read and written by the app's own code** (`src/project/midi.ts`, 400 lines, pure) — no
+  library in the browser. The node script keeps using `@tonejs/midi`.
+- **A song file, imported, becomes a project** (through `projectFromSong`), so everything under My
+  songs can be edited. Stage 2's importer stored it as a song with no project behind it.
+- **`#/play/u-…` reads the device first and the bank second.** Stage 2's tests serve songs with `u-`
+  ids from a mocked bank; reading only the device broke eight of them.
+- **"Export song for the bank"** writes the compiled song with an id made from the title, not `u-…`.
+
+### S3.9 — installable, backups
+
+- **The service worker is registered only with the `studio` flag on.** It keeps the app's own files —
+  every screen's, so the Studio opens offline — and nothing else: not bank songs, not piano samples
+  (Stage 9). A page is always asked of the network first, so a new version is never held back.
+- **`Vary: Origin`** on the server's responses made every kept file look like a different one, and the
+  first offline start loaded nothing. The worker matches by address alone.
+- **How to install is said in words, per device.** There is no "Install" button that calls the
+  browser's prompt: only Chromium has one, and the owner's phone is not Chromium.
+- **Restore never overwrites.** Unchanged songs are left; a different version of a stored song is kept
+  beside it as "… (from backup)"; a damaged song in the file is named and left out.
+- The backup reminder can be put off for a week.
+
+### Tests made steadier
+
+None of these changed what a test asserts.
+
+- `e2e/engine.spec.ts` (Stage 2, criterion 12) waited a second of wall time for a note to die away. On
+  a busy CI machine the audio clock runs slower than that, and it failed "starts from silence" twice
+  on this stage's first push. It now waits a second by the audio clock.
+- `playerReady` (`e2e/helpers.ts`) waits for the Practice screen and the frame after it. A key pressed
+  the moment the player existed went nowhere on a busy machine; a Stage 1 test failed that way once.
+- The key-to-sound test (criterion 10) takes up to three rounds of ten touches and judges the
+  steadiest, recording all of them.
+- Sizes of buttons are rounded before being compared with 44: measured while a sheet slides up, a
+  44 px button reads 43.99997.
+
+### Acceptance
+
+| # | Criterion | Result |
+| --- | --- | --- |
+| 1 | The Twinkle run-through, phone and desktop | Pass — `e2e/twinkle.spec.ts`, at 390 × 844 and 1440 × 900: new song, fourteen notes from the on-screen keys, five chords, Write to track, play, Practice it; melody in the right hand, chords in the left, eight bars, listed under My songs. |
+| 2 | Three keys together are one chord, one step | Pass — `src/studio/step.test.ts`; and with three real key presses and three real touches in `e2e/input.spec.ts`. |
+| 3 | A scripted performance up to 40 ms off the grid | Pass — `src/studio/record.test.ts`; and through the app's record button in `e2e/input.spec.ts`: right grid steps, differences in `offset`, one undo step. |
+| 4 | Drag a note two keys right and a beat later | Pass — `e2e/editing.spec.ts`: exactly that note's `pitch` and `tick`, one `apply` call, one undo. |
+| 5 | Every editing action by keyboard; the live region | Pass — `e2e/editing.spec.ts` "by keyboard alone", and the keyboard tests of the chord picker, sections and tracks. Tab is not taken (see S3.3). |
+| 6 | Duplicate and move a section | Pass — `src/studio/sections/ops.test.ts` and `e2e/sections.spec.ts`: three note tracks and a drum clip; one undo restores the project deep-equal. |
+| 7 | Changing a chord under written notes | Pass — `src/studio/chords/edit.test.ts` and `e2e/chords.spec.ts`. |
+| 8 | MIDI and project round trips | Pass — `src/project/midi.test.ts` (including random songs) and `e2e/io.spec.ts` through a real download and file picker. |
+| 9 | 60 frames a second with 3,000 notes | Measured in throttled Chromium; **the owner's device is still to judge.** See below. |
+| 10 | Key press to sound | Pass — `e2e/input.spec.ts`: the Stage 2 measurement through a real touch on the canvas. |
+| 11 | Closed tab restores project, cursor and zoom; a damaged project opens read-only | Pass — `e2e/editor.spec.ts` and `e2e/studio.spec.ts`. |
+| 12 | Flag off: no Studio code, no My songs | Pass — `e2e/studio.spec.ts`, `e2e/mysongs.library.spec.ts`, `e2e/pwa.spec.ts`. |
+| 13 | Practice unchanged | Pass — `smoke.spec.ts` and `scheduling.spec.ts` are untouched and green; `e2e/stage-frames.spec.ts`. |
+| 14 | Installable; offline; export-all and restore | Pass — `e2e/pwa.spec.ts` (Chromium's installability checks report nothing; with the network off the shell opens and a saved song loads and plays) and `e2e/backup.storage.spec.ts` (a clean browser profile). |
+
+`npm run check` passes: 695 unit tests, 211 browser tests in Chromium (two more skip themselves where
+the piano samples cannot be downloaded); CI adds WebKit for the screens that make no sound.
+
+**Criterion 9, the numbers.** A 3,000-note project (Divenire as a project, plus four), Chromium with
+the CPU slowed four times, frames counted over three to five seconds:
+
+| | Playing | Dragging a note | Scrolling | Drawing one frame |
+| --- | --- | --- | --- | --- |
+| 390 × 844 at a phone's pixel density (×3) | 58.4 fps | 58.5 fps | 60.2 fps | 1.7–2.4 ms median, 6.3 ms worst |
+| 1440 × 900 | 60.3 fps | 59.6 fps | 59.8 fps | 1.7–3.0 ms median, 7.7 ms worst |
+
+Practice itself, measured the same way on the same machine at the phone's pixel density, plays at
+58.0 fps and idles at 56.7; at ordinary density it holds 59.9. So the two frames a second short of
+sixty are the test machine painting a ×3 canvas in software, and the editor is no slower than Practice
+is. `e2e/editor-perf.spec.ts` keeps the editor's own cost in check (a frame's drawing must take under
+half a frame). One edit to that project — apply, then recompile the song — takes about 20 ms
+unthrottled. No performance trace is attached to the pull request: the tools here cannot attach files.
+
+**Bundle.** With the flag off, Practice downloads 138.1 KB of JavaScript gzipped in the same four
+files (+1.7 KB over the end of Stage 2), and the Library 55.7 KB in the same three (+1.3 KB). Opening a
+song in the Studio adds about 85 KB to what Practice already loads.
+
+**Not built.**
+
+- An "Install" button that calls the browser's own prompt (see S3.9).
+- Marks on notes for where they came from: the plan leaves them to the stages that create such notes.
+- Editing drums. The drum lane shows hits; pads, patterns and recording onto a drum track are Stage 4.
+- Reading a key signature from a MIDI file: the key is worked out from the notes, and the project says so.
+- Recently played songs of the author's own in the Library's Continue row.
+
+**Not verified, and for the owner.** This is the stage the plan expected to need a round with you.
+
+- **A real phone.** Everything here was driven by Chromium's emulated touch. How the gestures feel
+  under a thumb — moving against scrolling, the long press, the pinch, the height of the keys, the
+  38 px note-length buttons — is yours to judge, on an iPhone and upright and sideways.
+- **Safari.** The editor has never run in a real Safari: Playwright's WebKit cannot load the audio
+  code. That includes the service worker and "Add to Home Screen", which Safari handles its own way.
+- **A real MIDI keyboard**, in Chrome on a computer. Tested here against a stand-in for the browser's API.
+- **The sound of keys played by hand** — the soft clipper Stage 2 flagged is now reachable for the
+  first time, and each track's sound is the grand piano where its samples can be downloaded.
+- **Sixty frames a second on a device** (criterion 9).
+- **One branch, not nine.** The protocol asks for a branch and a pull request for each package; this
+  session could push to one branch, so the packages are nine commits on it and one pull request.

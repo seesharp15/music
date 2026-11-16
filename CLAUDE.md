@@ -58,6 +58,18 @@ npm run format       # apply Prettier
   Practice on Safari has to be checked on a real phone.
 - The sampled grand piano loads from `tonejs.github.io`. Where that host is blocked the app falls back
   to the Clear sound, and tests of the piano sound skip themselves.
+- The Studio (`src/studio`) is behind the `studio` flag; its tests open `/?flags=test-hooks,studio#/…`
+  and reach it through `window.__app.store`, `.ui` and `.session` (helpers in `e2e/studio-helpers.ts`).
+  What later stages attach to — layers, sheets, the note input, `edit()` — is contracts §13.
+- `e2e/stage-frames.spec.ts` holds Practice's waterfall to the exact canvas calls it made before its
+  drawing code was shared (`src/components/stage-draw.ts`). If it fails, the drawing changed: record
+  the frames again only on purpose (the file says how).
+- `vite.config.ts` pins the small modules Practice shares with the Studio into files Practice already
+  downloads, so Practice stays at four files. `#/studio` (the list) must load no audio code: the editor
+  is `src/studio/OpenProject.tsx`, fetched when a song is opened.
+- Tests run with service workers blocked; only `e2e/pwa.spec.ts` allows them. The worker (`src/sw.ts`)
+  is registered only with the `studio` flag on.
+- On-screen key taps in a test must be 60 ms apart or more, or step entry reads them as one chord.
 - Prettier formats TypeScript only. The stylesheet's one-rule-per-line layout is deliberate.
 - Three `react-hooks/exhaustive-deps` warnings on existing components are known and intentional.
 

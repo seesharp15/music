@@ -33,6 +33,16 @@ every push. Conventions for working in this repository are in [CLAUDE.md](CLAUDE
 Addresses are in the hash: `#/play/rewrite-the-stars` opens a song. Links from before that
 (`#rewrite-the-stars`) still work.
 
+## The Studio (behind a flag)
+
+A song builder is built and waiting to be tried: add `?flags=studio` to the address once. The Library
+then shows **My songs**; a new song opens in an editor that looks like Practice — the same waterfall
+over the same keyboard — where notes are tapped in one at a time, played live against a click, or
+drawn; with a chord track, sections, tracks and a mixer; and **Practice it** opens the result in
+Practice with left and right hands. Songs live on the device: `#/settings` has the backup, and the app
+can be installed. Without the flag none of it is downloaded. [The plan](docs/plan/03-studio-manual.md)
+says what each part does and what is still to be checked on a real phone.
+
 ## Songs
 
 Songs live in `public/songs/*.json` in the `piano-song/v1` format and are
@@ -66,6 +76,9 @@ src/
   components/Stage.tsx   # falling notes + keyboard (canvas)
   components/Trimmer.tsx # loop trimmer / timeline
   components/Practice.tsx# controls and layout
+  components/stage-draw.ts # how a waterfall is painted; shared by Practice and the editor
+  studio/                # the song builder: editor canvas, gestures, note input, chords, sections, tracks
+  sw.ts                  # the service worker: keeps the app's own files for offline use
   song/                  # song format types, loader, beat map, rhythm analysis
   music/                 # musical time, quantize, tempo estimation, theory kernel, analysis
   project/               # the editable project: schema, edit operations, undo, compile to a song

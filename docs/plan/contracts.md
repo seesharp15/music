@@ -22,6 +22,7 @@ then on the code is the source of truth and this file is kept in step with it.
 - [10. Storage](#10-storage)
 - [11. Routes and feature flags](#11-routes-and-feature-flags)
 - [12. Source layout and the pure zone](#12-source-layout-and-the-pure-zone)
+- [13. Studio: what later stages build on](#13-studio-what-later-stages-build-on)
 
 ---
 
@@ -344,6 +345,20 @@ v1 song's right hand becomes a Melody track and its left a Chords track. A song 
 estimated grid and `source.gridGuessed`; one with no key gets the best-fitting key and a line in
 `source.warnings`. A song whose first downbeat comes late (`gridOffset`) gets a whole first bar.
 
+Standard MIDI files (`src/project/midi.ts`, pure, no library):
+
+```ts
+/** Format 1, 480 ticks to the quarter: a conductor track, then one MIDI track per project track. */
+export function projectToMidi(p: Project): Uint8Array;
+/** Any ordinary MIDI file as a project. Throws a `MidiError` whose message says what is wrong. */
+export function projectFromMidi(bytes: Uint8Array, opts?: { title?: string; fallbackTitle?: string }): Project;
+```
+
+Every note's pitch, tick and length survive the trip; `offset`, origins, chords and sections do not.
+Drums travel on channel 10 as General MIDI percussion and come back as free hits. A file with a
+single unnamed track is split at middle C into a right hand and a left. This app's own files carry
+each track's role and hand in a text event (`piano-tutor:<role>:<hand>`), so they come back whole.
+
 Rules `compileProject` guarantees: output passes `normalize()`; notes are sorted by time then pitch;
 `hand` is the note's override or its track's hand; `track` is the track id; the song id is
 `u-<projectId>`; overlapping notes of the same pitch on one track are trimmed so they never overlap.
@@ -478,7 +493,9 @@ copy of everything it puts out, for a meter or a recorder — and `onPiano(fn)`.
 is played by hand (`noteOn`, `noteOff`) goes through a second set of hands and strips, with the same
 mix, that ends in a soft clipper instead: a browser's compressor delays everything by 6 ms, and the
 clipper delays nothing. A note played by hand is therefore asked for at the audio clock's present
-moment and heard in the next render quantum. The live path is built the first time it is used.
+moment and heard in the next render quantum. The live path is built the first time it is used. A
+note played by hand sounds for at least 60 ms however briefly its key was touched: a release asked
+for at the same instant as the attack makes no sound at all.
 
 `PlayerState` changes (Stage 1): `levels: Record<Hand, HandLevel>` becomes `mix: Record<Hand, HandMix>`,
 and `sustain: boolean` is added. Stage 2 adds, to the state, `trackMix: Record<string, HandMix>`,
@@ -832,6 +849,10 @@ Local-first: a song the author builds lives in their browser until they export i
 | `localStorage` | `piano-tutor:latency` | measured input latency per device, ms |
 | `localStorage` | `piano-tutor:storage-persist` | what the browser answered when asked to keep this site's data: `persisted`, `refused` or `unsupported` |
 | `localStorage` | `piano-tutor:unsaved:<projectId>` | a project written as the page closed, when the database write may not have finished; picked up and removed by the next load |
+| `localStorage` | `piano-tutor:studio:<projectId>` | the editor state of a project, written as the page closed; picked up and removed by the next open |
+| `localStorage` | `piano-tutor:clipboard` | notes cut or copied in the Studio, so they can be pasted into another song |
+| `localStorage` | `piano-tutor:last-backup` | when "Export all my songs" last ran |
+| `localStorage` | `piano-tutor:backup-snooze`, `piano-tutor:install-hint` | the backup reminder put off until a date; the install note seen |
 | `sessionStorage` | `piano-tutor:session:<songId>` | position, speed, loop, zoom, mix (existing, migrated) |
 | IndexedDB `piano-tutor` | store `projects` | `Project` by id |
 | | store `projectMeta` | `{ id, title, updatedAt, bars, preview }` for fast listing |
@@ -841,7 +862,7 @@ Local-first: a song the author builds lives in their browser until they export i
 | | store `blobs` | audio (hummed takes, reference audio for imports) and stored `AnalyzeResult`s |
 | | store `kv` | `assist:<projectId>` — `{ history: SuggestionRecord[]; profile: PreferenceProfile }` |
 | | | `assist:profile` — the author's preferences across all songs |
-| | | `studio:<projectId>` — cursor, zoom, active track, tool, hint mode, authorship view |
+| | | `studio:<projectId>` — cursor, zoom, active track, tool, key range, note length, snap, colour by hand, hidden tracks, metronome, count-in; later: hint mode, authorship view |
 | | | `chat:<projectId>` — the last thirty co-writer turns |
 | | | `songs:index` — a listing entry (`SongIndexEntry` plus `updatedAt`, `projectId`) for every user song, so the Library never opens one to draw its card |
 
@@ -868,8 +889,11 @@ Projects and user songs are stored as written and **validated on the way out** (
 A project file is the project as JSON (`<title>.piano-project.json`); a song file is the song
 (`<title>.piano-song.json`). Importing a project whose id is already stored keeps both.
 
-Exporting one project writes the project alone. "Export all my songs" (Stage 3) also carries each
-project's `kv` entries and takes.
+Exporting one project writes the project alone. "Export all my songs" (Stage 3) writes one file,
+`piano-tutor-backup/v1` (`src/project/backup.ts`): every project that passes validation, the `kv`
+entries that belong to each (`studio:`, `assist:`, `chat:` + its id), and the takes. Nothing from
+`localStorage` is in it. Restoring never overwrites: a song already stored and identical is left, a
+different one with the same id is kept beside it, a damaged one in the file is named and left out.
 
 ## 11. Routes and feature flags
 
@@ -888,8 +912,12 @@ Hash routes, so the app keeps working on any static host and old links survive.
 
 Flags let unfinished stages merge without showing: `studio`, `drums`, `assist`, `assist-ai`, `hum`,
 `import`, `import-youtube`. On when listed in `piano-tutor:flags` or in `?flags=a,b`. A stage removes its
-flag when its acceptance criteria pass. One more, `test-hooks`, exposes `window.__app` (player, project
-store, UI store) in a production build for end-to-end tests; it is always on in development builds.
+flag when its acceptance criteria pass. One more, `test-hooks`, exposes `window.__app` in a production
+build for end-to-end tests — `player` (Practice), and while the Studio is open `store`, `ui` and
+`session` (its playback, its note input, the canvas controller) — and is always on in development builds.
+
+With the `studio` flag off, `#/studio`, `#/studio/:projectId` and `#/settings` do not exist, the
+Library shows no My songs, and no service worker is registered.
 
 ## 12. Source layout and the pure zone
 
@@ -918,3 +946,52 @@ docs/plan/    this plan
 ★ marks the **pure zone**: no DOM, no Web Audio, no React, no `tone`. These modules are type-checked by a
 second `tsconfig` without the DOM library, so they are guaranteed to run in the browser, in the server and
 in unit tests alike. Musical logic goes here; everything else calls it.
+
+## 13. Studio: what later stages build on
+
+Stages 4, 5, 7 and 8 add to the Studio without editing its core. The places they attach:
+
+```ts
+// src/studio/session.ts — one open project
+export interface Session {
+  projectId: string;
+  store: ProjectStoreHandle;   // §5
+  ui: UiStore;                 // cursor, selection, tool, active track, zoom, loop … (not undoable)
+  playback: Playback;          // the player on the compiled project; live notes; audition
+  keys: NoteInput;             // every key press, whatever it came from
+  editor: Editor | null;       // the canvas controller, while the canvas is on screen
+  readOnly: boolean;
+}
+
+// src/studio/layers.ts — the canvas draws through an ordered list of layers
+export interface Layer { id: string; order: number; draw(ctx: CanvasRenderingContext2D, s: DrawState): void }
+export function registerLayer(layer: Layer): () => void;
+// Built in, in order: background 0, grid 10, notes 30, pending 35, drums 40, loop 45, line 50,
+// gutters 60, keyboard 70, box 80. A new layer takes an order between two of them.
+
+// src/studio/input.ts — one path for on-screen keys, musical typing and MIDI
+export interface NoteInput {
+  down(pitch: number, velocity: number, source: "screen" | "typing" | "midi", at?: { song?: number; now?: number }): void;
+  up(pitch: number, source: "screen" | "typing" | "midi", at?: { song?: number; now?: number }): void;
+  rest(): void; tie(): void; backspace(): boolean;
+  toggleRecord(): void; stopRecording(): void;
+}
+
+// src/studio/actions.ts — every edit goes through here, as one labelled undo step
+export function edit(session: Session, ops: EditOp[], label: string): boolean;   // false if refused; says why
+export function announce(session: Session, text: string): void;                  // the live region
+```
+
+- **Sheets** (`src/studio/sheets/Sheet.tsx`): `<Sheet id title>` shows when `ui.sheet === id` — under the
+  editor on a phone, at the side on a wide screen. A new panel adds its id to `SheetId`.
+- **Gestures** (`src/studio/interaction.ts`) are a pure state machine: pointer, wheel and time events
+  in, intents out. A new tool is a new branch of it and a table of tests.
+- **View maths** (`src/studio/view.ts`): `yAtTick`, `tickAtY`, `pitchAtX`, `keyRect`, `hitNote`. Time
+  runs up the screen; the cursor line is fixed two fifths of the way up the waterfall.
+- **Reading a take into notes** (`src/studio/record.ts`): `takeToNotes(played, timeMap, { grid,
+  latencyMs })` files each note on the nearest grid line and keeps the difference in `offset`.
+- **Chords as notes** (`src/music/voicing.ts`): `voiceChord`, `realizeChords`, `writtenAs`.
+- **Sections** (`src/studio/sections/ops.ts`) and **tracks** (`src/studio/tracks/ops.ts`): arrangement
+  edits as `EditOp[]`, built on the range operations of §5.
+- The editor state remembered per project is `SavedUi` in `src/studio/ui-store.ts`; a stage that
+  wants something remembered adds it there and to `sanitizeSavedUi`.
