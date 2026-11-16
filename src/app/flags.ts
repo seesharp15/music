@@ -42,3 +42,28 @@ export function flag(name: FlagName): boolean {
 export function useFlag(name: FlagName): boolean {
   return useMemo(() => flag(name), [name]);
 }
+
+/** Whether a flag is among those kept on this device (not counting the address). */
+export function storedFlag(name: FlagName): boolean {
+  try {
+    return split(localStorage.getItem(KEY)).includes(name);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Keep a flag on (or take it off) on this device, as listing it in `piano-tutor:flags` by hand
+ * would. Flags are read when the page loads, so the caller reloads. False if it could not be kept.
+ */
+export function setStoredFlag(name: FlagName, on: boolean): boolean {
+  try {
+    const rest = split(localStorage.getItem(KEY)).filter((f) => f !== name);
+    const next = on ? [...rest, name] : rest;
+    if (next.length) localStorage.setItem(KEY, next.join(","));
+    else localStorage.removeItem(KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}

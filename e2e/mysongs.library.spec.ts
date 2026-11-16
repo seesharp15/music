@@ -162,3 +162,26 @@ test("the cards fit a small phone, with touch-sized targets, and nothing scrolls
   expect(menu!.width).toBeGreaterThanOrEqual(44);
   expect(menu!.height).toBeGreaterThanOrEqual(44);
 });
+
+test("the Studio can be switched on for this device from the Credits page, with no address to type, and off again", async ({
+  page,
+}) => {
+  // As an installed app opens: no flags in the address.
+  await page.goto("/#/credits");
+  const flag = page.getByRole("checkbox", { name: /Song builder on this device/ });
+  await expect(flag).not.toBeChecked();
+  // A click, not check(): the page reloads at once, so there is no box left to read back.
+  await flag.click();
+  await expect(page.getByRole("heading", { name: "My songs" })).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem("piano-tutor:flags"))).toBe("studio");
+  // It stays on: this is the device's choice, not the address's.
+  await page.reload();
+  await expect(page.getByRole("button", { name: /New song/ })).toBeVisible();
+
+  await page.goto("/#/credits");
+  await expect(flag).toBeChecked();
+  await flag.click();
+  await expect(page.getByRole("heading", { name: "Song bank" })).toBeVisible();
+  await expect(page.getByText("My songs")).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem("piano-tutor:flags"))).toBeNull();
+});

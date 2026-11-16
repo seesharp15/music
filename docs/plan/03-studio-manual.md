@@ -307,7 +307,12 @@ commit per package, in the order S3.1 to S3.9, with CI run on every push. Everyt
 `studio` flag: with it off the routes do not exist, the Library shows no My songs, no service worker
 is registered, and Practice and the Library download none of it.
 
-To see it: add `?flags=studio` to the address once (or put `studio` in `piano-tutor:flags`).
+To see it: tick **Song builder on this device** on the Credits page, which puts `studio` in
+`piano-tutor:flags` and reloads; or add `?flags=studio` to the address. The switch is not in the plan.
+It is there because the flag in the address does not reach the installed app (the home-screen icon
+opens the start address, which carries no flags, and on an iPhone the installed app keeps its own
+storage), so without it criterion 13 could be tried on a real phone only with developer tools. It is
+off by default, sits under a heading that says "Unfinished", and goes when the flag does.
 
 ### S3.1 — frame, project list, My songs
 

@@ -1,3 +1,4 @@
+import { setStoredFlag, storedFlag } from "../flags";
 import { TopBar } from "../TopBar";
 
 /** `#/credits` — whose work this app is built on, and under which licences. */
@@ -27,6 +28,23 @@ export default function CreditsRoute() {
           </a>{" "}
           (MIT). Interface built with React (MIT).
         </p>
+        <h2>Unfinished</h2>
+        <label className="credits-flag">
+          <input
+            type="checkbox"
+            checked={storedFlag("studio")}
+            onChange={(e) => {
+              // Flags are read when the page loads: keep the choice, then load the Library with it.
+              if (!setStoredFlag("studio", e.target.checked)) return;
+              window.location.hash = "#/";
+              window.location.reload();
+            }}
+          />
+          <span>
+            <strong>Song builder on this device.</strong> A studio for writing your own songs. It is built but not yet
+            tried on a real phone; switching it on shows “My songs” in the library.
+          </span>
+        </label>
         <p>
           <a href="#/">Back to the songs</a>
         </p>

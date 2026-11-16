@@ -912,7 +912,9 @@ Hash routes, so the app keeps working on any static host and old links survive.
 
 Flags let unfinished stages merge without showing: `studio`, `drums`, `assist`, `assist-ai`, `hum`,
 `import`, `import-youtube`. On when listed in `piano-tutor:flags` or in `?flags=a,b`. A stage removes its
-flag when its acceptance criteria pass. One more, `test-hooks`, exposes `window.__app` in a production
+flag when its acceptance criteria pass. `#/credits` has a switch that lists or unlists `studio` in
+`piano-tutor:flags` (`setStoredFlag` in `src/app/flags.ts`), because the address of an installed app
+cannot be edited; it goes with the flag. One more, `test-hooks`, exposes `window.__app` in a production
 build for end-to-end tests — `player` (Practice), and while the Studio is open `store`, `ui` and
 `session` (its playback, its note input, the canvas controller) — and is always on in development builds.
 

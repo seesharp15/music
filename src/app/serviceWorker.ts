@@ -31,7 +31,7 @@ export function installPlatform(): "ios" | "android" | "desktop" {
 }
 
 export const INSTALL_STEPS: Record<ReturnType<typeof installPlatform>, string> = {
-  ios: "In Safari, tap the Share button, then “Add to Home Screen”.",
+  ios: "In Safari, tap the Share button, then “Add to Home Screen”. Make a backup here first: on an iPhone or iPad the installed app may start with none of your songs, and Restore brings them into it.",
   android: "Open the browser’s menu (⋮) and choose “Install app” or “Add to Home screen”.",
   desktop:
     "In Chrome or Edge, use the install button at the end of the address bar, or the menu’s “Install Piano Tutor”.",

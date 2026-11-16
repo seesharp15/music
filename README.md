@@ -35,8 +35,9 @@ Addresses are in the hash: `#/play/rewrite-the-stars` opens a song. Links from b
 
 ## The Studio (behind a flag)
 
-A song builder is built and waiting to be tried: add `?flags=studio` to the address once. The Library
-then shows **My songs**; a new song opens in an editor that looks like Practice — the same waterfall
+A song builder is built and waiting to be tried. Turn it on from **Credits → Song builder on this
+device** (it stays on for that device, including the installed app), or add `?flags=studio` to the
+address. The Library then shows **My songs**; a new song opens in an editor that looks like Practice — the same waterfall
 over the same keyboard — where notes are tapped in one at a time, played live against a click, or
 drawn; with a chord track, sections, tracks and a mixer; and **Practice it** opens the result in
 Practice with left and right hands. Songs live on the device: `#/settings` has the backup, and the app
