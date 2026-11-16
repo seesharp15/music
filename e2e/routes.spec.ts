@@ -14,27 +14,52 @@ test("a song has its own address", async ({ page }) => {
   await expect(page.getByRole("heading", heading("Divenire"))).toBeVisible();
 });
 
-test("home opens the first song", async ({ page }) => {
+test("home is the library", async ({ page }) => {
   await open(page, "#/");
+  await expect(page.getByRole("heading", heading("Song bank"))).toBeVisible();
+  await open(page, "");
+  await expect(page.getByRole("heading", heading("Song bank"))).toBeVisible();
+});
+
+test("an unknown song says so, and does not open another song instead", async ({ page }) => {
+  await open(page, "#/play/nope");
+  await expect(page.getByText("That song isn’t in the library.")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(0);
+  await page.getByRole("link", { name: "See all the songs" }).click();
+  await expect(page.getByRole("heading", heading("Song bank"))).toBeVisible();
+});
+
+test("an unknown address says so and offers the way home", async ({ page }) => {
+  await open(page, "#/no/such/place");
+  await expect(page.getByText("There’s nothing at this address.")).toBeVisible();
+  await page.getByRole("link", { name: "Go to the songs" }).click();
+  await expect(page.getByRole("heading", heading("Song bank"))).toBeVisible();
+});
+
+test("library to a song and back, by link and by the browser's buttons", async ({ page }) => {
+  await open(page, "#/");
+  await page.getByRole("link", { name: /Rewrite the Stars/ }).click();
   await expect(page.getByRole("heading", heading("Rewrite the Stars"))).toBeVisible();
   expect(new URL(page.url()).hash).toBe("#/play/rewrite-the-stars");
-});
 
-test("an unknown song falls back to the first one", async ({ page }) => {
-  await open(page, "#/play/no-such-song");
-  await expect(page.getByRole("heading", heading("Rewrite the Stars"))).toBeVisible();
-});
-
-test("back and forward move between songs", async ({ page }) => {
-  await open(page, "#/play/rewrite-the-stars");
-  await expect(page.getByRole("heading", heading("Rewrite the Stars"))).toBeVisible();
-  await page.getByLabel("Song", { exact: true }).selectOption("divenire");
+  await page.getByRole("link", { name: "← Library" }).click();
+  await expect(page.getByRole("heading", heading("Song bank"))).toBeVisible();
+  await page.getByRole("link", { name: /Divenire/ }).click();
   await expect(page.getByRole("heading", heading("Divenire"))).toBeVisible();
-  expect(new URL(page.url()).hash).toBe("#/play/divenire");
+
+  await page.goBack();
+  await expect(page.getByRole("heading", heading("Song bank"))).toBeVisible();
   await page.goBack();
   await expect(page.getByRole("heading", heading("Rewrite the Stars"))).toBeVisible();
   await page.goForward();
+  await page.goForward();
   await expect(page.getByRole("heading", heading("Divenire"))).toBeVisible();
+});
+
+test("the brand is the way home from a song", async ({ page }) => {
+  await open(page, "#/play/divenire");
+  await page.getByRole("link", { name: "Piano Tutor: all songs" }).click();
+  await expect(page.getByRole("heading", heading("Song bank"))).toBeVisible();
 });
 
 test("the piano samples are credited, one tap from any page", async ({ page }) => {
